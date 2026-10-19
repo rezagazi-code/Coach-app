@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'ir.coachstudio.app',
-  appName: 'استودیو مربی',
+  appName: 'کمک مربی',
   webDir: 'dist',
   plugins: {
     CapacitorHttp: {
