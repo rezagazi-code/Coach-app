@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">استودیو مربی</string>
+    <string name="title_activity_main">استودیو مربی</string>
+    <string name="package_name">ir.coachstudio.app</string>
+    <string name="custom_url_scheme">ir.coachstudio.app</string>
+</resources>

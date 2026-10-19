@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.local
+
+# Secrets — NEVER commit keystores or env files
+*.jks
+*.keystore
+*.env
+*.pem
+*.key
+
+# Capacitor
+android/app/src/main/assets/
+android/app/build/
+android/.gradle/
+android/build/
+android/capacitor-cordova-android-plugins/build/
+android/local.properties
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/

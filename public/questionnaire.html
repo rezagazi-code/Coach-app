@@ -1,0 +1,1012 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<link rel="icon" href="data:," />
+<!-- نام نهایی اپ (توان / پالس / ورزشکار) با انتخاب رضا جایگزین شود -->
+<title>استودیو مربیگری هوشمند — پرسش‌نامه و برنامه تمرینی</title>
+<style>
+  :root{
+    --bg:#07090E; --panel:#0F141C; --panel2:#121A26; --line:rgba(255,255,255,.09);
+    --txt:#EDF2F7; --muted:#9AA7B8; --volt:#D4FF00; --cyan:#00F0FF; --danger:#FF0055;
+    --amber:#FFB020; --radius:18px;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--txt);
+    font-family:"Segoe UI", Tahoma, "Vazirmatn", -apple-system, sans-serif;
+    line-height:1.7; font-size:16px;
+  }
+  .glow{position:fixed; border-radius:50%; filter:blur(140px); pointer-events:none; z-index:0; opacity:.45}
+  .glow-a{top:-160px; inset-inline-start:-120px; width:450px; height:450px; background:rgba(212,255,0,.12)}
+  .glow-b{bottom:-180px; inset-inline-end:-120px; width:450px; height:450px; background:rgba(0,240,255,.09)}
+  .wrap{position:relative; z-index:1; max-width:900px; margin:0 auto; padding:24px 16px 80px}
+
+  /* Header & Branding */
+  .header-brand{display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; border-bottom:1px solid var(--line); padding-bottom:14px}
+  .brand-logo{display:flex; align-items:center; gap:10px}
+  .brand-icon{width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg, var(--volt), var(--cyan)); display:flex; align-items:center; justify-content:center; color:#000; font-weight:900; font-size:18px}
+  .brand-title{font-size:17px; font-weight:900; letter-spacing:.5px}
+  .brand-title span{color:var(--volt)}
+  .brand-sub{font-size:11px; color:var(--muted); font-family:monospace}
+
+  h1{font-size:clamp(23px,4.5vw,32px); margin:4px 0 6px; font-weight:900; line-height:1.35}
+  h1 .v{color:var(--volt)}
+  .lead{color:var(--muted); margin:0 0 24px; font-size:15px}
+  h2{font-size:20px; margin:0 0 6px; font-weight:800}
+  h3{font-size:16px; margin:0 0 10px; font-weight:700}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:22px; margin-bottom:18px; backdrop-filter:blur(16px)}
+
+  /* Progress Bar */
+  .progress-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:13px; color:var(--muted)}
+  .progress-head b{color:var(--cyan); font-weight:700}
+  .bar{height:7px; background:rgba(255,255,255,.06); border-radius:99px; overflow:hidden; margin-bottom:18px}
+  .bar > div{height:100%; width:0; background:linear-gradient(90deg, var(--cyan), var(--volt)); border-radius:99px; transition:width .4s ease; box-shadow:0 0 14px rgba(212,255,0,.45)}
+  .dots{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:20px}
+  .dot{flex:1; min-width:fit-content; text-align:center; font-size:12px; padding:7px 8px; border-radius:10px; background:rgba(255,255,255,.03); color:var(--muted); border:1px solid transparent}
+  .dot.on{background:rgba(212,255,0,.12); color:var(--volt); border-color:rgba(212,255,0,.35); font-weight:700}
+  .dot.done{color:var(--cyan)}
+
+  /* Form elements */
+  fieldset{border:0; padding:0; margin:0}
+  legend{font-size:20px; font-weight:800; margin-bottom:4px; padding:0}
+  .step-sub{color:var(--muted); font-size:14px; margin:0 0 18px}
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+  @media (max-width:580px){ .grid{grid-template-columns:1fr} }
+  .field label{display:block; font-size:14px; font-weight:600; margin-bottom:6px}
+  .field .hint{font-size:12px; color:var(--muted); font-weight:400}
+  input[type=text], input[type=number], select, textarea{
+    width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--txt);
+    border-radius:12px; padding:12px 14px; font:inherit; font-size:15px; outline:none; transition:all .2s;
+  }
+  input:focus, select:focus, textarea:focus{border-color:var(--cyan); box-shadow:0 0 0 3px rgba(0,240,255,.15)}
+  textarea{resize:vertical; min-height:80px}
+  .choices{display:grid; gap:10px}
+  .choices.cols2{grid-template-columns:1fr 1fr}
+  @media (max-width:580px){ .choices.cols2{grid-template-columns:1fr} }
+  .choice{
+    display:flex; align-items:flex-start; gap:12px; padding:14px 16px;
+    border:1px solid var(--line); border-radius:14px; background:var(--panel2);
+    cursor:pointer; transition:all .2s ease; font-size:15px;
+  }
+  .choice input{
+    width:19px; height:19px; flex:none; margin:3px 0 0; padding:0;
+    accent-color:var(--volt); cursor:pointer; background:transparent; border:0;
+  }
+  .choice .box{display:block; flex:1}
+  .choice .box small{display:block; color:var(--muted); font-size:12.5px; margin-top:2px}
+  .choice:hover{border-color:rgba(255,255,255,.2); transform:translateY(-1px)}
+  .choice:has(input:checked){border-color:var(--volt); background:rgba(212,255,0,.08); box-shadow:0 0 16px rgba(212,255,0,.15)}
+
+  .bmi-live{margin-top:16px; padding:14px 18px; border-radius:14px; background:rgba(0,240,255,.06); border:1px solid rgba(0,240,255,.25); display:none}
+  .bmi-live.show{display:block}
+  .bmi-live b{color:var(--cyan); font-size:22px}
+  .bmi-scale{display:flex; gap:4px; margin-top:10px}
+  .bmi-scale span{flex:1; height:8px; border-radius:99px; background:rgba(255,255,255,.10)}
+  .bmi-scale span.u{background:#4FC3F7}.bmi-scale span.n{background:#7ED957}.bmi-scale span.o{background:#FFB020}.bmi-scale span.ob{background:#FF0055}
+  .bmi-scale span.off{opacity:.2}
+  .cond{display:none; margin-top:14px}
+  .cond.show{display:block}
+  .err{display:none; margin-top:14px; padding:12px 16px; border-radius:12px; background:rgba(255,0,85,.10); border:1px solid rgba(255,0,85,.45); color:#FFB3C9; font-size:14px}
+  .err.show{display:block}
+  .nav{display:flex; gap:12px; margin-top:24px}
+
+  /* Neon buttons — PadelPro mechanics: gradient, glow, shine sweep, gloss dome, burst ring */
+  @keyframes pp-ring { from { transform: scale(1); opacity: 0.8; } to { transform: scale(1.15); opacity: 0; } }
+  .btn{
+    appearance:none; border:1px solid transparent; font:inherit; font-size:15px; padding:13px 24px;
+    position:relative; overflow:hidden; isolation:isolate; cursor:pointer; border-radius:12px; font-weight:800;
+    transition:transform 0.25s ease, box-shadow 0.25s ease, filter 0.25s ease;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  }
+  .btn:active{ transform:scale(0.96); }
+  .btn-volt{ background:linear-gradient(135deg, #D4FF00 0%, #8fd400 100%); color:#000; box-shadow:0 8px 26px -6px rgba(212,255,0,0.5), inset 0 1px 0 rgba(255,255,255,0.3); flex:1; }
+  .btn-volt:hover{ transform:translateY(-2px); filter:brightness(1.08); box-shadow:0 12px 32px -6px rgba(212,255,0,0.7); }
+  .btn-cyan{ background:linear-gradient(135deg, #00F0FF 0%, #0090ff 100%); color:#000; box-shadow:0 8px 26px -6px rgba(0,240,255,0.5); }
+  .btn-cyan:hover{ transform:translateY(-2px); filter:brightness(1.08); box-shadow:0 12px 32px -6px rgba(0,240,255,0.7); }
+  .btn-ghost{ background:rgba(255,255,255,.06); color:var(--txt); border-color:rgba(255,255,255,.14); }
+  .btn-ghost:hover{ transform:translateY(-2px); box-shadow:0 8px 20px rgba(0,0,0,.35); }
+  /* gloss dome — the bubble read */
+  .btn-volt::before, .btn-cyan::before{
+    content:""; position:absolute; pointer-events:none; top:4%; left:8%; right:8%; height:46%;
+    border-radius:999px; background:linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,0));
+  }
+  /* shine sweep on hover */
+  .btn-volt::after, .btn-cyan::after{
+    content:''; position:absolute; top:0; bottom:0; width:60%; left:-80%; z-index:1;
+    background:linear-gradient(105deg, transparent, rgba(255,255,255,.5), transparent);
+    transform:skewX(-20deg); transition:left .6s ease; pointer-events:none;
+  }
+  .btn-volt:hover::after, .btn-cyan:hover::after{ left:130%; }
+  /* burst ring on press — the "pop" */
+  .btn-volt:active::before, .btn-cyan:active::before{
+    content:''; position:absolute; inset:0; top:0; left:0; right:0; height:auto;
+    border-radius:inherit; border:2px solid rgba(255,255,255,.6); background:none;
+    animation:pp-ring .5s ease-out forwards; pointer-events:none; z-index:2;
+  }
+
+  .step{display:none}
+  .step.active{display:block; animation:fade .3s ease}
+  @keyframes fade{from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none}}
+
+  /* Results & Tabs */
+  #results{display:none}
+  #results.show{display:block}
+  .tabs{display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap}
+  .tab{
+    appearance:none; cursor:pointer; font:inherit; font-weight:700; font-size:14px;
+    padding:11px 20px; border-radius:12px; border:1px solid rgba(255,255,255,.14);
+    background:rgba(255,255,255,.05); color:var(--muted); transition:all .2s;
+  }
+  .tab.on{
+    background:linear-gradient(135deg, #D4FF00 0%, #8fd400 100%); color:#000; border-color:transparent; font-weight:800;
+    box-shadow:0 6px 22px -4px rgba(212,255,0,0.5);
+  }
+
+  /* Readiness Score Hero Widget */
+  .readiness-hero{
+    padding:20px; border-radius:16px; margin-bottom:16px;
+    background:radial-gradient(circle at top right, rgba(0,240,255,.15), transparent 70%), var(--panel2);
+    border:1px solid rgba(0,240,255,.3); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;
+  }
+  .readiness-dial{display:flex; align-items:center; gap:14px}
+  .readiness-circle{
+    width:70px; height:70px; border-radius:50%; border:4px solid var(--volt);
+    display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:900;
+    box-shadow:0 0 20px rgba(212,255,0,.4); font-family:monospace; color:#fff;
+  }
+  .readiness-meta b{display:block; font-size:16px; color:var(--txt)}
+  .readiness-meta span{font-size:12.5px; color:var(--muted)}
+
+  /* Flags & Cards */
+  .flag{display:flex; gap:12px; align-items:flex-start; padding:13px 16px; border-radius:12px; margin-bottom:10px; font-size:14.5px}
+  .flag .ic{font-weight:900; font-size:18px; line-height:1.4}
+  .flag.red{background:rgba(255,0,85,.10); border:1px solid rgba(255,0,85,.45)}
+  .flag.red .ic{color:var(--danger)}
+  .flag.amber{background:rgba(255,176,32,.09); border:1px solid rgba(255,176,32,.4)}
+  .flag.amber .ic{color:var(--amber)}
+  .flag.cyan{background:rgba(0,240,255,.07); border:1px solid rgba(0,240,255,.35)}
+  .flag.cyan .ic{color:var(--cyan)}
+  .flag.volt{background:rgba(212,255,0,.08); border:1px solid rgba(212,255,0,.4)}
+  .flag.volt .ic{color:var(--volt)}
+
+  .paid-banner{display:flex; gap:12px; align-items:center; padding:14px 18px; border-radius:14px; margin-bottom:16px;
+    background:linear-gradient(90deg, rgba(212,255,0,.14), rgba(255,176,32,.10)); border:1px solid rgba(212,255,0,.45); font-weight:800}
+  .ai-label{display:inline-block; font-size:12px; font-weight:800; padding:4px 12px; border-radius:99px;
+    background:rgba(0,240,255,.12); color:var(--cyan); border:1px solid rgba(0,240,255,.4); margin-bottom:12px}
+
+  .kv{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px}
+  .kv .item{background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:12px 14px}
+  .kv .item span{display:block; font-size:12px; color:var(--muted)}
+  .kv .item b{font-size:16px}
+  .kv .item b.c{color:var(--cyan)} .kv .item b.v{color:var(--volt)}
+
+  .session{border:1px solid var(--line); border-radius:14px; overflow:hidden; margin-bottom:14px; background:var(--panel2)}
+  .session-head{padding:13px 16px; background:rgba(212,255,0,.07); border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap}
+  .session-head b{font-size:16px}
+  .session-head span{font-size:12.5px; color:var(--cyan); font-family:monospace}
+  table.ex{width:100%; border-collapse:collapse; font-size:14.5px}
+  table.ex td{padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.05); vertical-align:top}
+  table.ex tr:last-child td{border-bottom:0}
+  table.ex td.sr{white-space:nowrap; color:var(--cyan); font-weight:700; width:150px; font-family:monospace}
+
+  .tag{display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:99px; margin-inline-start:6px; vertical-align:middle}
+  .tag.padel{background:rgba(212,255,0,.15); color:var(--volt); border:1px solid rgba(212,255,0,.35)}
+  .tag.sub{background:rgba(255,176,32,.15); color:var(--amber); border:1px solid rgba(255,176,32,.4)}
+  .tag.prev{background:rgba(0,240,255,.12); color:var(--cyan); border:1px solid rgba(0,240,255,.35)}
+
+  .vip-badge{display:inline-block; font-size:11px; font-weight:900; padding:2px 10px; border-radius:99px; background:linear-gradient(90deg, var(--volt), var(--amber)); color:#000; margin-inline-start:8px; vertical-align:middle}
+  .card.vip{border-color:rgba(212,255,0,.4); background:linear-gradient(160deg, #131B10, var(--panel) 60%); box-shadow:0 0 30px rgba(212,255,0,.08)}
+
+  .pm-row{border:1px solid var(--line); border-radius:12px; background:var(--panel2); padding:12px 14px; margin-bottom:9px}
+  .pm-row.open{border-color:rgba(255,0,85,.45)}
+  .pm-check{display:flex; align-items:center; gap:10px; cursor:pointer; font-weight:600; font-size:15px}
+  .pm-check input{width:18px; height:18px; accent-color:var(--danger); cursor:pointer}
+  .pm-detail{display:none; gap:10px; grid-template-columns:1fr 1fr; margin-top:12px}
+  .pm-row.open .pm-detail{display:grid}
+  @media (max-width:580px){ .pm-detail{grid-template-columns:1fr} }
+  .pm-detail label{font-size:12.5px; color:var(--muted); display:block; margin-bottom:4px}
+  .pm-surg{grid-column:1 / -1; border-top:1px dashed var(--line); padding-top:10px}
+  .pm-surg-q{font-size:13px; font-weight:600; margin-bottom:6px}
+  .pm-surg-opts{display:flex; gap:18px}
+  .pm-surg-opts label{display:flex; align-items:center; gap:6px; font-size:13.5px; cursor:pointer}
+  .pm-detail .pm-surg-note{display:none; margin-top:8px}
+  .pm-detail .pm-surg-note.show{display:block}
+
+  .ex-note{display:block; font-size:12.5px; color:var(--muted); margin-top:3px}
+  ul.tips{margin:8px 0 0; padding-inline-start:20px}
+  ul.tips li{margin-bottom:6px; font-size:14px}
+  .actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:20px}
+  .hidden{display:none !important}
+
+  /* In-match Fueling Blueprint */
+  .fuel-table{width:100%; border-collapse:collapse; margin-top:10px; font-size:13.5px}
+  .fuel-table th{background:rgba(255,255,255,.05); padding:8px 12px; text-align:right; color:var(--cyan); border-bottom:1px solid var(--line)}
+  .fuel-table td{padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.04)}
+</style>
+</head>
+<body>
+<div class="glow glow-a"></div>
+<div class="glow glow-b"></div>
+<div class="wrap">
+
+  <div class="header-brand">
+    <div class="brand-logo">
+      <div class="brand-icon">⚡</div>
+      <div>
+        <div class="brand-title">COACH<span>STUDIO</span></div>
+        <div class="brand-sub">SMART TRAINING ASSESSMENT</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== WIZARD ======== -->
+  <div id="wizard">
+    <h1>پرسش‌نامه هوشمند <span class="v">مربیگری ورزشی</span></h1>
+    <p class="lead" id="wizardLead">مسیر خود را انتخاب کنید؛ بر اساس اطلاعات بدنی، هدف و وضعیت سلامت شما، برنامه تمرینی علمی و شخصی‌سازی‌شده طراحی می‌شود.</p>
+
+    <div class="progress-head"><span id="stepLabel">قدم ۱ از ۶</span><b id="stepPct">۱۵٪</b></div>
+    <div class="bar"><div id="barFill"></div></div>
+    <div class="dots" id="dots"></div>
+
+    <form id="form" novalidate>
+      <!-- STEP 0 : PATH -->
+      <section class="step active" data-key="path">
+        <div class="card">
+          <fieldset>
+            <legend>مسیر تمرینی شما</legend>
+            <p class="step-sub">مسیر خود را انتخاب کنید تا برنامه مخصوص همان حالت طراحی شود:</p>
+            <div class="choices">
+              <label class="choice"><input type="radio" name="ptype" value="gym" /><span class="box">بدنسازی و فیتنس<small>برنامه کامل باشگاهی؛ بدون بخش تخصصی پدل</small></span></label>
+              <label class="choice vip-choice" style="border-color:rgba(212,255,0,.4)"><input type="radio" name="ptype" value="vip" /><span class="box">بدنسازی + پدل <span class="vip-badge">پکیج VIP</span><small>برنامه باشگاهی هماهنگ با نیازهای پدل، نقشه درد و آمادگی مسابقه</small></span></label>
+              <label class="choice"><input type="radio" name="ptype" value="padel" /><span class="box">فقط پدل (با مربی)<small>تمرین تکنیک و تاکتیک در کورت + روتین موبیلیتی و پیشگیری خانگی</small></span></label>
+              <label class="choice"><input type="radio" name="ptype" value="aionly" /><span class="box">فقط برنامه هوشمند (بدون مربی) <span class="tag sub">محصول پولی</span><small>تولید خودکار برنامه با غربالگری ایمنی؛ بدون بررسی مربی</small></span></label>
+            </div>
+            <div class="err" id="errPath">لطفاً یکی از مسیرها را انتخاب کنید.</div>
+          </fieldset>
+          <div class="nav"><button type="button" class="btn btn-volt" data-next>شروع ارزیابی ←</button></div>
+        </div>
+      </section>
+
+      <!-- STEP 1: BODY -->
+      <section class="step" data-key="body">
+        <div class="card">
+          <fieldset>
+            <legend>مشخصات بدنی پایه</legend>
+            <p class="step-sub">این اطلاعات برای محاسبه شاخص توده بدنی و تخمین کالری روزانه لازم است.</p>
+            <div class="grid">
+              <div class="field">
+                <label for="fName">نام و نام خانوادگی <span class="hint">(اختیاری)</span></label>
+                <input type="text" id="fName" placeholder="مثلاً: سام رادین" />
+              </div>
+              <div class="field">
+                <label for="fAge">سن (سال) *</label>
+                <input type="number" id="fAge" min="8" max="95" placeholder="مثلاً: ۲۹" />
+              </div>
+              <div class="field">
+                <label for="fHeight">قد (سانتی‌متر) *</label>
+                <input type="number" id="fHeight" min="110" max="230" placeholder="مثلاً: ۱۸۲" />
+              </div>
+              <div class="field">
+                <label for="fWeight">وزن (کیلوگرم) *</label>
+                <input type="number" id="fWeight" min="30" max="250" placeholder="مثلاً: ۷۹" />
+              </div>
+            </div>
+            <div class="field" style="margin-top:14px">
+              <label>جنسیت *</label>
+              <div class="choices cols2">
+                <label class="choice"><input type="radio" name="gender" value="male" /><span class="box">مرد</span></label>
+                <label class="choice"><input type="radio" name="gender" value="female" /><span class="box">زن</span></label>
+              </div>
+            </div>
+            <div class="bmi-live" id="bmiLive">
+              شاخص توده بدنی شما (BMI): <b id="bmiVal">—</b> &nbsp;·&nbsp; <span id="bmiCat">—</span>
+              <div class="bmi-scale"><span class="u" id="bsU"></span><span class="n" id="bsN"></span><span class="o" id="bsO"></span><span class="ob" id="bsOb"></span></div>
+            </div>
+            <div class="err" id="err1">لطفاً مقادیر معتبر قد، وزن، سن و جنسیت را وارد نمایید.</div>
+          </fieldset>
+          <div class="nav"><button type="button" class="btn btn-volt" data-next>قدم بعد ←</button></div>
+        </div>
+      </section>
+
+      <!-- STEP 2: GOAL -->
+      <section class="step" data-key="goal">
+        <div class="card">
+          <fieldset>
+            <legend>هدف اصلی شما در این دوره</legend>
+            <p class="step-sub">برنامه تمرینی و راهنمای تغذیه بر مبنای این هدف تنظیم می‌شود:</p>
+            <div class="choices">
+              <label class="choice"><input type="radio" name="goal" value="padel" /><span class="box">آمادگی برای پدل<small>قدرت چرخشی، چابکی و پیشگیری از آسیب شانه و آرنج</small></span></label>
+              <label class="choice"><input type="radio" name="goal" value="fatloss" /><span class="box">کاهش وزن و چربی‌سوزی<small>کسری کالری هوشمند بدون افت توان عضلانی</small></span></label>
+              <label class="choice"><input type="radio" name="goal" value="muscle" /><span class="box">افزایش حجم عضلانی<small>تمرکز روی فرم‌دهی و افزایش توده عضلانی</small></span></label>
+              <label class="choice"><input type="radio" name="goal" value="strength" /><span class="box">افزایش قدرت پایه<small>تمرکز روی الگوهای حرکتی اصلی</small></span></label>
+              <label class="choice"><input type="radio" name="goal" value="health" /><span class="box">سلامت عمومی و تناسب اندام<small>تمرین پایدار برای رفع کم‌تحرکی و خشکی مفاصل</small></span></label>
+            </div>
+            <div class="err" id="err2">لطفاً یک هدف را مشخص کنید.</div>
+          </fieldset>
+          <div class="nav"><button type="button" class="btn btn-ghost" data-prev>→ برگشت</button><button type="button" class="btn btn-volt" data-next>قدم بعد ←</button></div>
+        </div>
+      </section>
+
+      <!-- STEP 3: HEALTH & INJURY -->
+      <section class="step" data-key="health">
+        <div class="card">
+          <fieldset>
+            <legend>سلامت مفاصل و سابقه آسیب</legend>
+            <p class="step-sub">برای جلوگیری از آسیب، حرکات پرخطر به طور خودکار با جایگزین‌های امن تعویض می‌شوند.</p>
+            <div class="field">
+              <label>سطح سابقه تمرین با وزنه *</label>
+              <div class="choices">
+                <label class="choice"><input type="radio" name="level" value="beginner" /><span class="box">تازه‌کار (کمتر از ۶ ماه)</span></label>
+                <label class="choice"><input type="radio" name="level" value="intermediate" /><span class="box">متوسط (۶ ماه تا ۲ سال)</span></label>
+                <label class="choice"><input type="radio" name="level" value="advanced" /><span class="box">پیشرفته (بیش از ۲ سال تمرین منظم)</span></label>
+              </div>
+            </div>
+            <div class="field" style="margin-top:16px">
+              <label>سابقه آسیب یا درد حین ورزش دارید؟ *</label>
+              <div class="choices cols2">
+                <label class="choice"><input type="radio" name="injury" value="no" /><span class="box">خیر، در سلامت کامل</span></label>
+                <label class="choice"><input type="radio" name="injury" value="yes" /><span class="box">بله، سابقه درد یا آسیب دارم</span></label>
+              </div>
+            </div>
+            <div class="cond" id="injuryBox">
+              <div class="field">
+                <label for="injuryZone">محل آسیب یا درد *</label>
+                <select id="injuryZone">
+                  <option value="">— انتخاب کنید —</option>
+                  <option value="shoulder">شانه</option>
+                  <option value="elbow">آرنج</option>
+                  <option value="wrist">مچ دست</option>
+                  <option value="back">کمر و ستون فقرات</option>
+                  <option value="knee">زانو (مینیسک یا رباط)</option>
+                  <option value="ankle">مچ پا</option>
+                  <option value="other">سایر نواحی</option>
+                </select>
+              </div>
+              <div class="field" style="margin-top:12px">
+                <label for="injuryNote">توضیح کوتاه</label>
+                <input type="text" id="injuryNote" placeholder="مثلاً: کشیدگی شانه راست" />
+              </div>
+              <div class="field" style="margin-top:12px">
+                <label>آیا روی این ناحیه عمل جراحی انجام شده است؟ *</label>
+                <div class="choices cols2">
+                  <label class="choice"><input type="radio" name="injurySurgery" value="yes" /><span class="box">بله، جراحی شده</span></label>
+                  <label class="choice"><input type="radio" name="injurySurgery" value="no" /><span class="box">خیر</span></label>
+                </div>
+              </div>
+            </div>
+            <div class="field" style="margin-top:16px">
+              <label for="fCondition">بیماری یا داروی خاص <span class="hint">(اختیاری — فشار خون، آسم، دیابت و...)</span></label>
+              <textarea id="fCondition" placeholder="در صورت وجود درج نمایید..."></textarea>
+            </div>
+            <div class="err" id="err3">لطفاً وضعیت سابقه و آسیب را مشخص کنید.</div>
+          </fieldset>
+          <div class="nav"><button type="button" class="btn btn-ghost" data-prev>→ برگشت</button><button type="button" class="btn btn-volt" data-next>قدم بعد ←</button></div>
+        </div>
+      </section>
+
+      <!-- STEP VIP: PADEL (deep — gym+padel VIP and padel-only tracks) -->
+      <section class="step" data-key="vip">
+        <div class="card vip">
+          <fieldset>
+            <legend>آنالیز تخصصی پدل <span class="vip-badge">VIP</span></legend>
+            <p class="step-sub">این بخش برنامه باشگاهی شما را با نیازهای واقعی پدل هماهنگ می‌کند.</p>
+
+            <div class="grid">
+              <div class="field">
+                <label>پست تخصصی در زمین *</label>
+                <div class="choices">
+                  <label class="choice"><input type="radio" name="vipSide" value="left" /><span class="box">سمت چپ<small>پست تهاجمی، اسمش‌زن اصلی</small></span></label>
+                  <label class="choice"><input type="radio" name="vipSide" value="right" /><span class="box">سمت راست<small>پست بازیساز و دفاعی</small></span></label>
+                </div>
+              </div>
+              <div class="field">
+                <label>نوع بالانس راکت شما *</label>
+                <div class="choices">
+                  <label class="choice"><input type="radio" name="racketType" value="diamond" /><span class="box">الماسی / سرسنگین<small>قدرت اسمش بالا؛ فشار بیشتر روی شانه و مچ</small></span></label>
+                  <label class="choice"><input type="radio" name="racketType" value="teardrop" /><span class="box">قطره‌ای / متعادل<small>ترکیب کنترل و قدرت</small></span></label>
+                  <label class="choice"><input type="radio" name="racketType" value="round" /><span class="box">گرد / کنترلی<small>کمترین فشار روی آرنج</small></span></label>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid" style="margin-top:14px">
+              <div class="field">
+                <label>سابقه ورزش‌های راکتی قبلی *</label>
+                <div class="choices">
+                  <label class="choice"><input type="radio" name="racketPast" value="tennis" /><span class="box">تنیس خاکی</span></label>
+                  <label class="choice"><input type="radio" name="racketPast" value="squash" /><span class="box">اسکواش / بدمینتون</span></label>
+                  <label class="choice"><input type="radio" name="racketPast" value="none" /><span class="box">هیچ‌کدام</span></label>
+                </div>
+              </div>
+              <div class="field">
+                <label>ضربه‌ای که در آن ضعف احساس می‌کنید *</label>
+                <div class="choices">
+                  <label class="choice"><input type="radio" name="overheadWeak" value="bandeja" /><span class="box">باندخا (Bandeja)</span></label>
+                  <label class="choice"><input type="radio" name="overheadWeak" value="vibora" /><span class="box">ویبورا (Vibora)</span></label>
+                  <label class="choice"><input type="radio" name="overheadWeak" value="smash" /><span class="box">اسمش پرشی (Smash)</span></label>
+                  <label class="choice"><input type="radio" name="overheadWeak" value="bajada" /><span class="box">باخادا (Bajada)</span></label>
+                </div>
+              </div>
+            </div>
+
+            <div class="field" style="margin-top:16px">
+              <label>جلسات بازی پدل در هفته * <span class="hint">(هر جلسه ۶۰ دقیقه ثابت)</span></label>
+              <div class="choices cols2">
+                <label class="choice"><input type="radio" name="vipSessions" value="1" /><span class="box">۱ جلسه (تفریحی)</span></label>
+                <label class="choice"><input type="radio" name="vipSessions" value="2" /><span class="box">۲ جلسه (منظم)</span></label>
+                <label class="choice"><input type="radio" name="vipSessions" value="3" /><span class="box">۳ جلسه (پرفشار)</span></label>
+                <label class="choice"><input type="radio" name="vipSessions" value="4" /><span class="box">۴ جلسه یا بیشتر (مسابقه‌ای)</span></label>
+              </div>
+            </div>
+
+            <div class="field" style="margin-top:16px">
+              <label>نقشه درد — اگر حین/بعد بازی دردی حس می‌کنی، کجا و کِی؟</label>
+              <div id="vipPainMap"></div>
+            </div>
+
+            <div class="err" id="errVip">لطفاً تمام گزینه‌های ستاره‌دار این بخش را کامل کنید.</div>
+          </fieldset>
+          <div class="nav"><button type="button" class="btn btn-ghost" data-prev>→ برگشت</button><button type="button" class="btn btn-volt" data-next>قدم بعد ←</button></div>
+        </div>
+      </section>
+
+      <!-- STEP: BASIC PADEL (program-only track — no deep VIP section) -->
+      <section class="step" data-key="padelbasic">
+        <div class="card">
+          <fieldset>
+            <legend>پدل (پایه)</legend>
+            <p class="step-sub">فقط برای هماهنگی کلی برنامه؛ بخش تخصصی ندارد.</p>
+            <div class="field">
+              <label>پدل هم بازی می‌کنی؟ *</label>
+              <div class="choices cols2">
+                <label class="choice"><input type="radio" name="pbPlay" value="yes" /><span class="box">بله</span></label>
+                <label class="choice"><input type="radio" name="pbPlay" value="no" /><span class="box">خیر</span></label>
+              </div>
+            </div>
+            <div class="cond" id="pbBox">
+              <div class="field" style="margin-top:12px">
+                <label>سطح بازی *</label>
+                <div class="choices">
+                  <label class="choice"><input type="radio" name="pbLevel" value="beginner" /><span class="box">مبتدی</span></label>
+                  <label class="choice"><input type="radio" name="pbLevel" value="intermediate" /><span class="box">متوسط</span></label>
+                  <label class="choice"><input type="radio" name="pbLevel" value="advanced" /><span class="box">پیشرفته</span></label>
+                </div>
+              </div>
+              <div class="field" style="margin-top:12px">
+                <label>تعداد جلسات پدل در هفته * <span class="hint">(هر جلسه ۶۰ دقیقه)</span></label>
+                <div class="choices cols2">
+                  <label class="choice"><input type="radio" name="pbSessions" value="1" /><span class="box">۱ جلسه</span></label>
+                  <label class="choice"><input type="radio" name="pbSessions" value="2" /><span class="box">۲ جلسه</span></label>
+                  <label class="choice"><input type="radio" name="pbSessions" value="3" /><span class="box">۳ جلسه</span></label>
+                  <label class="choice"><input type="radio" name="pbSessions" value="4" /><span class="box">۴ جلسه یا بیشتر</span></label>
+                </div>
+              </div>
+            </div>
+            <div class="err" id="errPb">لطفاً وضعیت پدل را مشخص کنید.</div>
+          </fieldset>
+          <div class="nav"><button type="button" class="btn btn-ghost" data-prev>→ برگشت</button><button type="button" class="btn btn-volt" data-next>قدم بعد ←</button></div>
+        </div>
+      </section>
+
+      <!-- STEP: RECOVERY -->
+      <section class="step" data-key="recovery">
+        <div class="card">
+          <fieldset>
+            <legend>ریکاوری، خواب و تجهیزات</legend>
+            <p class="step-sub">برای تنظیم حجم تمرین هفتگی و شدت برنامه.</p>
+            <div class="grid">
+              <div class="field">
+                <label for="fSleep">میانگین خواب شبانه (ساعت) *</label>
+                <input type="number" id="fSleep" min="3" max="14" step="0.5" placeholder="مثلاً: ۷.۵" />
+              </div>
+              <div class="field">
+                <label>ساعت هوشمند داری؟ *</label>
+                <div class="choices cols2">
+                  <label class="choice"><input type="radio" name="watch" value="yes" /><span class="box">بله</span></label>
+                  <label class="choice"><input type="radio" name="watch" value="no" /><span class="box">خیر</span></label>
+                </div>
+              </div>
+            </div>
+            <div class="grid" style="margin-top:16px">
+              <div class="field">
+                <label>چند روز در هفته می‌توانی باشگاه بروی؟ *</label>
+                <div class="choices cols2">
+                  <label class="choice"><input type="radio" name="days" value="2" /><span class="box">۲ روز</span></label>
+                  <label class="choice"><input type="radio" name="days" value="3" /><span class="box">۳ روز</span></label>
+                  <label class="choice"><input type="radio" name="days" value="4" /><span class="box">۴ روز</span></label>
+                  <label class="choice"><input type="radio" name="days" value="5" /><span class="box">۵ روز</span></label>
+                </div>
+              </div>
+              <div class="field">
+                <label>هر جلسه باشگاه چند دقیقه؟ *</label>
+                <div class="choices cols2">
+                  <label class="choice"><input type="radio" name="minutes" value="45" /><span class="box">۴۵ دقیقه</span></label>
+                  <label class="choice"><input type="radio" name="minutes" value="60" /><span class="box">۶۰ دقیقه</span></label>
+                  <label class="choice"><input type="radio" name="minutes" value="75" /><span class="box">۷۵ دقیقه</span></label>
+                  <label class="choice"><input type="radio" name="minutes" value="90" /><span class="box">۹۰ دقیقه</span></label>
+                </div>
+              </div>
+            </div>
+            <div class="field" style="margin-top:16px">
+              <label>تجهیزات در دسترس *</label>
+              <div class="choices">
+                <label class="choice"><input type="radio" name="equipment" value="gym" /><span class="box">باشگاه بدنسازی کامل</span></label>
+                <label class="choice"><input type="radio" name="equipment" value="home" /><span class="box">دمبل و کش خانگی</span></label>
+              </div>
+            </div>
+            <div class="err" id="errRec">لطفاً خواب، روزهای تمرین، مدت جلسه و تجهیزات را مشخص نمایید.</div>
+          </fieldset>
+          <div class="nav"><button type="button" class="btn btn-ghost" data-prev>→ برگشت</button><button type="button" class="btn btn-volt finishBtn">ساخت برنامه ✓</button></div>
+        </div>
+      </section>
+
+      <!-- STEP AI-ONLY: MEDICAL RED-FLAG SCREENING -->
+      <section class="step" data-key="redflag">
+        <div class="card" style="border-color:rgba(255,0,85,.5)">
+          <fieldset>
+            <legend>غربالگری ایمنی (اجباری برای برنامه بدون مربی)</legend>
+            <p class="step-sub">اگر پاسخ هر کدام «بله» باشد، برنامه‌ای صادر نمی‌شود و ابتدا باید به پزشک مراجعه کنید:</p>
+            <div class="field">
+              <label>۱. حین ورزش درد یا فشار در قفسه سینه حس کرده‌ای؟ *</label>
+              <div class="choices cols2">
+                <label class="choice"><input type="radio" name="rfChest" value="yes" /><span class="box">بله</span></label>
+                <label class="choice"><input type="radio" name="rfChest" value="no" /><span class="box">خیر</span></label>
+              </div>
+            </div>
+            <div class="field" style="margin-top:12px">
+              <label>۲. سابقه غش یا سرگیجه بی‌دلیل داری؟ *</label>
+              <div class="choices cols2">
+                <label class="choice"><input type="radio" name="rfFaint" value="yes" /><span class="box">بله</span></label>
+                <label class="choice"><input type="radio" name="rfFaint" value="no" /><span class="box">خیر</span></label>
+              </div>
+            </div>
+            <div class="field" style="margin-top:12px">
+              <label>۳. بیماری قلبی، فشار خون یا دیابت کنترل‌نشده داری؟ *</label>
+              <div class="choices cols2">
+                <label class="choice"><input type="radio" name="rfCond" value="yes" /><span class="box">بله</span></label>
+                <label class="choice"><input type="radio" name="rfCond" value="no" /><span class="box">خیر</span></label>
+              </div>
+            </div>
+            <div class="field" style="margin-top:12px">
+              <label>۴. پزشک ورزش را برای تو محدود یا ممنوع کرده است؟ *</label>
+              <div class="choices cols2">
+                <label class="choice"><input type="radio" name="rfDoc" value="yes" /><span class="box">بله</span></label>
+                <label class="choice"><input type="radio" name="rfDoc" value="no" /><span class="box">خیر</span></label>
+              </div>
+            </div>
+            <div class="err" id="errRf">لطفاً به هر چهار سؤال ایمنی پاسخ دهید.</div>
+          </fieldset>
+          <div class="nav"><button type="button" class="btn btn-ghost" data-prev>→ برگشت</button><button type="button" class="btn btn-volt" data-next>قدم بعد ←</button></div>
+        </div>
+      </section>
+
+    </form>
+  </div>
+
+  <!-- ======== RESULTS VIEW ======== -->
+  <div id="results">
+    <h1>گزارش تحلیلی و <span class="v">برنامه تمرینی</span></h1>
+    <p class="lead" id="resultLead">اطلاعات شما تحلیل و برنامه تمرینی شخصی‌سازی‌شده طراحی شد.</p>
+
+    <div class="tabs no-print" id="tabsRow">
+      <button class="tab on" id="tabTrainee">نمای شاگرد</button>
+      <button class="tab" id="tabCoach">گزارش مربی</button>
+    </div>
+
+    <div id="traineeView"></div>
+    <div id="coachView" class="hidden"></div>
+
+    <div class="actions no-print">
+      <button class="btn btn-cyan" id="downloadBtn">دانلود گزارش (HTML)</button>
+      <button class="btn btn-ghost" id="restartBtn">ارزیابی مجدد</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
+function faNum(n){ return String(n).replace(/[0-9]/g, d => FA_DIGITS[d]); }
+function parseNum(v){
+  if(v == null) return NaN;
+  const s = String(v).replace(/[۰-۹]/g, d => FA_DIGITS.indexOf(d)).replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(",", ".");
+  return parseFloat(s);
+}
+function radioVal(name){ const el = document.querySelector('input[name="'+name+'"]:checked'); return el ? el.value : null; }
+function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+/* BMI */
+function bmiOf(h, w){ const m = h/100; return w/(m*m); }
+function bmiCat(b){
+  if(b < 18.5) return { key:"u", label:"کمبود وزن" };
+  if(b < 25) return { key:"n", label:"متناسب" };
+  if(b < 30) return { key:"o", label:"اضافه وزن" };
+  return { key:"ob", label:"چاقی" };
+}
+function updateBmiLive(){
+  const h = parseNum($("#fHeight").value), w = parseNum($("#fWeight").value);
+  const box = $("#bmiLive");
+  if(h >= 100 && h <= 230 && w >= 30 && w <= 250){
+    const b = bmiOf(h,w), c = bmiCat(b);
+    $("#bmiVal").textContent = faNum(b.toFixed(1));
+    $("#bmiCat").textContent = "وضعیت: " + c.label;
+    ["u","n","o","ob"].forEach(k => { $("#bs" + ({ u:"U", n:"N", o:"O", ob:"Ob" }[k])).classList.toggle("off", k !== c.key); });
+    box.classList.add("show");
+  } else box.classList.remove("show");
+}
+$("#fHeight").addEventListener("input", updateBmiLive);
+$("#fWeight").addEventListener("input", updateBmiLive);
+
+/* Injury conditionals */
+$$('input[name="injury"]').forEach(r => r.addEventListener("change", () => {
+  $("#injuryBox").classList.toggle("show", radioVal("injury") === "yes");
+}));
+$$('input[name="pbPlay"]').forEach(r => r.addEventListener("change", () => {
+  $("#pbBox").classList.toggle("show", radioVal("pbPlay") === "yes");
+}));
+
+/* Pain map */
+const PAIN_ZONES = [
+  { k:"shoulder", t:"شانه" },
+  { k:"elbow", t:"آرنج" },
+  { k:"knee", t:"زانو" },
+  { k:"back", t:"کمر" },
+  { k:"ankle", t:"مچ پا" }
+];
+const PAIN_TIMES = { impact:"لحظه برخورد", overhead:"بالای سر (اسمش/باندخا)", lunge:"حین ترمز و فرود", morning:"صبح روز بعد" };
+function buildPainMap(id){
+  const box = document.getElementById(id);
+  box.innerHTML = PAIN_ZONES.map(z =>
+    '<div class="pm-row" data-zone="' + z.k + '" data-zonet="' + z.t + '">' +
+      '<label class="pm-check"><input type="checkbox" class="pm-toggle" /> ' + z.t + "</label>" +
+      '<div class="pm-detail">' +
+        '<div><label>درد کِی حس می‌شود؟</label><select class="pm-time"><option value="">— انتخاب کنید —</option>' +
+          Object.keys(PAIN_TIMES).map(k => '<option value="' + k + '">' + PAIN_TIMES[k] + "</option>").join("") +
+        "</select></div>" +
+        '<div class="pm-surg"><div class="pm-surg-q">آیا روی این ناحیه عمل جراحی انجام شده؟</div>' +
+          '<div class="pm-surg-opts">' +
+            '<label><input type="radio" name="' + id + '-surg-' + z.k + '" value="yes" /> بله</label>' +
+            '<label><input type="radio" name="' + id + '-surg-' + z.k + '" value="no" /> خیر</label>' +
+          "</div>" +
+          '<div class="pm-surg-note"><label>توضیح جراحی (اختیاری)</label><input type="text" class="pm-surg-txt" placeholder="مثلاً: عمل مینیسک، دو سال پیش" /></div>' +
+        "</div>" +
+      "</div></div>"
+  ).join("");
+  box.querySelectorAll(".pm-toggle").forEach(t => t.addEventListener("change", () => {
+    t.closest(".pm-row").classList.toggle("open", t.checked);
+  }));
+  box.querySelectorAll('.pm-surg input[type="radio"]').forEach(r => r.addEventListener("change", () => {
+    const row = r.closest(".pm-row");
+    row.querySelector(".pm-surg-note").classList.toggle("show", r.value === "yes" && r.checked);
+  }));
+}
+buildPainMap("vipPainMap");
+
+function readPainMap(id){
+  const out = [];
+  document.querySelectorAll("#" + id + " .pm-row").forEach(r => {
+    if(r.querySelector(".pm-toggle").checked){
+      const sr = r.querySelector('.pm-surg input[type="radio"]:checked');
+      out.push({
+        zone: r.dataset.zonet,
+        time: PAIN_TIMES[r.querySelector(".pm-time").value] || "—",
+        surgery: sr ? sr.value : "no",
+        surgNote: (r.querySelector(".pm-surg-txt") || {}).value || ""
+      });
+    }
+  });
+  return out;
+}
+
+/* Wizard navigation */
+const PATHS = {
+  gym:   { steps:["path","body","goal","health","recovery"], names:["مسیر","مشخصات","هدف","سلامت","ریکاوری"] },
+  vip:   { steps:["path","body","goal","health","vip","recovery"], names:["مسیر","مشخصات","هدف","سلامت","تخصصی پدل","ریکاوری"] },
+  padel: { steps:["path","body","health","vip"], names:["مسیر","مشخصات","سلامت","آنالیز پدل"] },
+  aionly:{ steps:["path","body","goal","health","redflag","padelbasic","recovery"], names:["مسیر","مشخصات","هدف","سلامت","ایمنی","پدل","ریکاوری"] }
+};
+let curPath = "gym", curIdx = 0;
+function pathDef(){ return PATHS[curPath]; }
+
+function renderDots(){
+  const d = $("#dots"); d.innerHTML = "";
+  pathDef().names.forEach((n,i) => {
+    const el = document.createElement("div");
+    el.className = "dot" + (i === curIdx ? " on" : i < curIdx ? " done" : "");
+    el.textContent = faNum(i+1) + " · " + n;
+    d.appendChild(el);
+  });
+}
+
+function showStep(idx){
+  const def = pathDef();
+  curIdx = Math.max(0, Math.min(idx, def.steps.length - 1));
+  const key = def.steps[curIdx];
+  $$(".step").forEach(s => s.classList.toggle("active", s.dataset.key === key));
+  renderDots();
+  $("#stepLabel").textContent = "قدم " + faNum(curIdx+1) + " از " + faNum(def.steps.length) + " — " + def.names[curIdx];
+  const pct = Math.round((curIdx+1)/def.steps.length*100);
+  $("#stepPct").textContent = faNum(pct) + "٪";
+  $("#barFill").style.width = pct + "%";
+  window.scrollTo({ top:0, behavior:"smooth" });
+}
+
+function validateKey(key){
+  let ok = true, errId = null;
+  if(key === "path"){ ok = !!radioVal("ptype"); errId = "errPath"; }
+  if(key === "body"){
+    const a = parseNum($("#fAge").value), h = parseNum($("#fHeight").value), w = parseNum($("#fWeight").value);
+    ok = a >= 8 && a <= 95 && h >= 110 && h <= 230 && w >= 30 && w <= 250 && !!radioVal("gender"); errId = "err1";
+  }
+  if(key === "goal"){ ok = !!radioVal("goal"); errId = "err2"; }
+  if(key === "health"){ ok = !!radioVal("level") && !!radioVal("injury"); errId = "err3"; }
+  if(key === "vip"){ ok = !!radioVal("vipSide") && !!radioVal("racketType") && !!radioVal("racketPast") && !!radioVal("overheadWeak") && !!radioVal("vipSessions"); errId = "errVip"; }
+  if(key === "padelbasic"){
+    const p = radioVal("pbPlay");
+    ok = !!p && (p === "no" || (!!radioVal("pbLevel") && !!radioVal("pbSessions")));
+    errId = "errPb";
+  }
+  if(key === "recovery"){
+    const s = parseNum($("#fSleep").value);
+    ok = s >= 3 && s <= 14 && !!radioVal("watch") && !!radioVal("days") && !!radioVal("minutes") && !!radioVal("equipment");
+    errId = "errRec";
+  }
+  if(key === "redflag"){
+    ok = !!radioVal("rfChest") && !!radioVal("rfFaint") && !!radioVal("rfCond") && !!radioVal("rfDoc");
+    errId = "errRf";
+  }
+  if(errId){ const el = document.getElementById(errId); if(el) el.classList.toggle("show", !ok); }
+  return ok;
+}
+
+$$('input[name="ptype"]').forEach(r => r.addEventListener("change", () => {
+  curPath = radioVal("ptype") || "gym";
+  if(curIdx === 0) showStep(0);
+}));
+$$("[data-next]").forEach(b => b.addEventListener("click", () => {
+  const key = pathDef().steps[curIdx];
+  if(!validateKey(key)) return;
+  if(key === "path") curPath = radioVal("ptype");
+  showStep(curIdx + 1);
+}));
+$$("[data-prev]").forEach(b => b.addEventListener("click", () => showStep(curIdx - 1)));
+
+/* ================================================================
+   EXERCISE ENGINE
+================================================================ */
+const EX_DB = {
+  squat:     { name:"اسکوات با وزنه (تکنیک‌محور)", sets:"۳ ست × ۸–۱۰ تکرار کنترل‌شده", note:"زانوها در راستای پنجه؛ عمق تا موازات ران" },
+  deadlift:  { name:"ددلیفت رومانیایی", sets:"۳ ست × ۸–۱۰ تکرار", note:"کمر صاف، حرکت از مفصل ران" },
+  bench:     { name:"پرس سینه دمبل", sets:"۳ ست × ۸–۱۲ تکرار", note:"کتف‌ها عقب و پایین؛ آرنج ۴۵ درجه" },
+  row:       { name:"زیربغل سیم‌کش / بارفیکس کمکی", sets:"۳ ست × ۸–۱۲ تکرار", note:"انقباض ۱ ثانیه‌ای بین دو کتف" },
+  ohp:       { name:"پرس سرشانه دمبل نشسته", sets:"۳ ست × ۸–۱۰ تکرار", note:"کمر به صندلی چسبیده؛ قوس نده" },
+  lunge:     { name:"لانج قدم‌زنی", sets:"۳ ست × ۱۰ قدم هر پا", note:"زانوی جلو از پنجه جلوتر نرود" },
+  plank:     { name:"پلانک", sets:"۳ ست × ۳۰–۴۵ ثانیه", note:"بدن یک خط مستقیم؛ باسن بالا نرود" },
+  facepull:  { name:"فیس‌پول با طناب", sets:"۳ ست × ۱۲–۱۵ تکرار", note:"چرخش خارجی آرنج در انتها" },
+  rotCable:  { name:"وودچاپ کابل مورب", sets:"۳ ست × ۱۰ تکرار هر سمت", note:"چرخش از تنه، نه از دست", tag:"padel" },
+  bulgarian: { name:"اسپلیت اسکوات بلغاری", sets:"۳ ست × ۸–۱۰ تکرار هر پا", note:"پاشنه پای جلو محکم به زمین", tag:"padel" },
+  wristArmor:{ name:"تقویت مچ (ایزومتریک)", sets:"۳ ست × ۲۰ ثانیه", note:"مچ صاف و بدون لرزش", tag:"prev" },
+  mobility:  { name:"روتین موبیلیتی خانگی (۱۰–۱۵ دقیقه)", sets:"روزانه", note:"شانه، لگن، مچ پا؛ بدون وزنه" }
+};
+
+const GOAL_TXT = { padel:"آمادگی پدل", fatloss:"چربی‌سوزی", muscle:"حجم عضلانی", strength:"قدرت پایه", health:"سلامت عمومی" };
+const LEVEL_TXT = { beginner:"تازه‌کار", intermediate:"متوسط", advanced:"پیشرفته" };
+
+function calculateProfile(){
+  const h = parseNum($("#fHeight").value), w = parseNum($("#fWeight").value), age = parseNum($("#fAge").value);
+  const gender = radioVal("gender");
+  const sleep = parseNum($("#fSleep").value) || 7;
+  const gymDays = parseInt(radioVal("days") || "3", 10);
+  const minutes = parseInt(radioVal("minutes") || "60", 10);
+
+  // Mifflin-St Jeor (تخمینی — مربی نهایی می‌کند)
+  const bmr = gender === "male" ? (10*w + 6.25*h - 5*age + 5) : (10*w + 6.25*h - 5*age - 161);
+  let mult = 1.35;
+  if(gymDays >= 5) mult = 1.6; else if(gymDays >= 3) mult = 1.5;
+  const tdee = Math.round(bmr * mult);
+
+  // کالری هر جلسه پدل ۶۰ دقیقه‌ای (تخمینی)
+  const matchCalories = Math.round(w * 0.125 * 60);
+
+  return {
+    name: $("#fName").value.trim() || "ورزشکار",
+    age, bmi: bmiOf(h, w), bmiStatus: bmiCat(bmiOf(h, w)).label,
+    bmr: Math.round(bmr), tdee, matchCalories, sleep, gymDays, minutes,
+    goal: GOAL_TXT[radioVal("goal")] || "—",
+    level: LEVEL_TXT[radioVal("level")] || "—",
+    injury: radioVal("injury"),
+    injuryZone: $("#injuryZone").value, injuryNote: $("#injuryNote").value.trim(),
+    injurySurgery: radioVal("injurySurgery"),
+    condition: $("#fCondition").value.trim(),
+    // vip
+    side: radioVal("vipSide") === "left" ? "سمت چپ (تهاجمی)" : (radioVal("vipSide") === "right" ? "سمت راست (کنترلی)" : null),
+    sessions: radioVal("vipSessions"),
+    painMap: readPainMap("vipPainMap"),
+    // padel basic (aionly)
+    pbPlay: radioVal("pbPlay"), pbLevel: radioVal("pbLevel"), pbSessions: radioVal("pbSessions"),
+    // red flags
+    rf: { chest: radioVal("rfChest"), faint: radioVal("rfFaint"), cond: radioVal("rfCond"), doc: radioVal("rfDoc") },
+    watch: radioVal("watch"),
+    equipment: radioVal("equipment")
+  };
+}
+
+function exRow(e, conservative){
+  const sets = conservative ? e.sets.replace(/۳ ست/, "۲–۳ ست") + " · تکنیک اول" : e.sets;
+  return '<tr><td>' + e.name +
+    (e.tag === "padel" ? '<span class="tag padel">پدل</span>' : "") +
+    (e.tag === "prev" ? '<span class="tag prev">پیشگیری</span>' : "") +
+    '<span class="ex-note">' + e.note + "</span></td>" +
+    '<td class="sr">' + sets + "</td></tr>";
+}
+
+function flagsHtml(d){
+  let h = "";
+  if(d.injury === "yes"){
+    const surg = d.injurySurgery === "yes";
+    h += '<div class="flag ' + (surg ? "red" : "amber") + '"><span class="ic">' + (surg ? "⛔" : "⚠") + "</span><span><b>سابقه آسیب:</b> " + esc(d.injuryZone || "—") +
+      (d.injuryNote ? " — " + esc(d.injuryNote) : "") +
+      (surg ? ' · <b>سابقه جراحی دارد — در برنامه‌دادن لحاظ شود</b>' : "") + "</span></div>";
+  }
+  d.painMap.forEach(p => {
+    if(p.surgery === "yes"){
+      h += '<div class="flag red"><span class="ic">⛔</span><span><b>جراحی ' + esc(p.zone) + '</b>' +
+        (p.surgNote ? " — " + esc(p.surgNote) : "") + " · درد: " + esc(p.time) + "</span></div>";
+    }
+  });
+  if(d.age < 18) h += '<div class="flag amber"><span class="ic">⚠</span><span>زیر ۱۸ سال — برنامه محافظه‌کارانه و نیاز به نظارت مربی/والدین.</span></div>';
+  if(d.sleep < 6) h += '<div class="flag amber"><span class="ic">⚠</span><span>خواب کمتر از ۶ ساعت — حجم تمرین کاهش یافت.</span></div>';
+  return h;
+}
+
+function statsHtml(d, showPadel){
+  return '<div class="kv">' +
+    '<div class="item"><span>شاخص BMI</span><b class="c">' + faNum(d.bmi.toFixed(1)) + " (" + d.bmiStatus + ")</b></div>" +
+    '<div class="item"><span>کالری روزانه نگهدارنده (تخمینی)</span><b class="v">' + faNum(d.tdee) + " kcal</b></div>" +
+    (showPadel ? '<div class="item"><span>کالری هر جلسه پدل ۶۰ دقیقه‌ای (تخمینی)</span><b>+' + faNum(d.matchCalories) + " kcal</b></div>" : "") +
+    '<div class="item"><span>برنامه هفتگی</span><b>' + faNum(d.gymDays) + " روز × " + faNum(d.minutes) + " دقیقه</b></div>" +
+  "</div>";
+}
+
+function renderResults(d){
+  const isAI = curPath === "aionly";
+  const isVip = curPath === "vip";
+  const isPadel = curPath === "padel";
+  const showPadel = isVip || isPadel || d.pbPlay === "yes";
+
+  /* --- AI-only: red-flag block --- */
+  if(isAI && (d.rf.chest === "yes" || d.rf.faint === "yes" || d.rf.cond === "yes" || d.rf.doc === "yes")){
+    const reasons = [];
+    if(d.rf.chest === "yes") reasons.push("درد/فشار قفسه سینه حین ورزش");
+    if(d.rf.faint === "yes") reasons.push("غش یا سرگیجه بی‌دلیل");
+    if(d.rf.cond === "yes") reasons.push("بیماری کنترل‌نشده");
+    if(d.rf.doc === "yes") reasons.push("ممنوعیت/محدودیت پزشک");
+    $("#resultLead").textContent = "غربالگری ایمنی";
+    $("#traineeView").innerHTML =
+      '<div class="card" style="border-color:rgba(255,0,85,.55)">' +
+      '<h2>⛔ برنامه‌ای صادر نشد</h2>' +
+      '<p>به این موارد پاسخ «بله» دادید: <b>' + reasons.join("، ") + "</b>.</p>" +
+      '<div class="flag red"><span class="ic">🏥</span><span><b>اول به پزشک مراجعه کن — بدون تأیید پزشک برنامه‌ای صادر نمی‌شود.</b></span></div>' +
+      "</div>";
+    $("#tabsRow").classList.add("hidden");
+    $("#coachView").classList.add("hidden");
+    return;
+  }
+
+  $("#tabsRow").classList.toggle("hidden", isAI);
+
+  let head = "";
+  if(isAI){
+    head += '<div class="paid-banner"><span>💎</span><span>محصول پولی — فقط برنامه هوشمند</span></div>';
+    head += '<span class="ai-label">تولیدشده توسط هوش مصنوعی — بدون بررسی مربی</span>';
+    $("#resultLead").textContent = "این برنامه توسط هوش مصنوعی تولید شده است — بدون بررسی مربی.";
+  } else {
+    $("#resultLead").textContent = "این برنامه جهت بررسی و تأیید نهایی مربی آماده است.";
+  }
+
+  /* --- program table --- */
+  const cons = isAI; // conservative for AI-only
+  let progRows = "";
+  if(isPadel){
+    progRows =
+      exRow(EX_DB.rotCable, cons) + exRow(EX_DB.bulgarian, cons) + exRow(EX_DB.facepull, cons) +
+      exRow(EX_DB.wristArmor, cons) + exRow(EX_DB.mobility, cons);
+  } else {
+    progRows =
+      exRow(EX_DB.squat, cons) + exRow(EX_DB.bench, cons) + exRow(EX_DB.row, cons) +
+      exRow(EX_DB.ohp, cons) + exRow(EX_DB.deadlift, cons) + exRow(EX_DB.lunge, cons) + exRow(EX_DB.plank, cons);
+    if(showPadel) progRows += exRow(EX_DB.rotCable, cons) + exRow(EX_DB.facepull, cons) + exRow(EX_DB.wristArmor, cons);
+  }
+  if(d.injury === "yes" && d.injuryZone === "knee"){
+    progRows += '<tr><td colspan="2" style="color:var(--amber); font-size:13px">⚠ به‌دلیل سابقه زانو: اسکوات عمیق و لانج سنگین با پرس پا/ددلیفت رومانیایی جایگزین شود.</td></tr>';
+  }
+  if(d.injury === "yes" && (d.injuryZone === "shoulder" || d.injuryZone === "elbow")){
+    progRows += '<tr><td colspan="2" style="color:var(--amber); font-size:13px">⚠ به‌دلیل سابقه شانه/آرنج: پرس سرشانه سنگین حذف و فیس‌پول/تقویت مچ در اولویت است.</td></tr>';
+  }
+
+  let conservativeNote = "";
+  if(cons){
+    conservativeNote = '<div class="flag volt"><span class="ic">🛡</span><span><b>پروتکل احتیاطی (چون مربی در حلقه نیست):</b> ۲ هفته اول با ۵۰–۶۰٪ توان و تمرکز کامل بر تکنیک؛ هر هفته حداکثر ۱۰٪ اضافه شود؛ بدون وزنه‌های رکوردی.</span></div>';
+  }
+
+  $("#traineeView").innerHTML = head +
+    '<div class="card"><h2>' + esc(d.name) + '</h2>' +
+    '<p class="step-sub">هدف: <b>' + esc(d.goal) + '</b> · سطح: <b>' + esc(d.level) + '</b>' +
+    (d.side ? ' · پست: <b>' + esc(d.side) + '</b>' : "") +
+    (d.sessions ? ' · <b>' + faNum(d.sessions) + ' جلسه پدل در هفته</b> (هر جلسه ۶۰ دقیقه ثابت)' : "") +
+    (d.pbPlay === "yes" ? ' · پدل: <b>' + faNum(d.pbSessions) + ' جلسه در هفته</b>' : "") + "</p>" +
+    statsHtml(d, showPadel) + "</div>" +
+    flagsHtml(d) + conservativeNote +
+    '<div class="card"><h3>برنامه تمرینی ' + (isPadel ? "(تکمیلی پدل + موبیلیتی)" : "(باشگاه)") + '</h3>' +
+    '<div class="session"><div class="session-head"><b>جلسات هفتگی</b><span>' + faNum(d.gymDays) + " روز × " + faNum(d.minutes) + ' دقیقه</span></div>' +
+    '<table class="ex">' + progRows + "</table></div>" +
+    '<p class="step-sub">کالری‌ها تخمینی‌اند (Mifflin-St Jeor)؛ مربی اعداد نهایی را تنظیم می‌کند.</p></div>' +
+    (isAI
+      ? '<div class="flag red"><span class="ic">⚠</span><span><b>سلب مسئولیت:</b> این برنامه توسط هوش مصنوعی و بدون بررسی مربی تولید شده است. در صورت درد، سرگیجه یا تنگی نفس، تمرین را فوراً متوقف و به پزشک مراجعه کنید.</span></div>'
+      : "");
+
+  /* --- coach view (hidden for AI-only) --- */
+  if(!isAI){
+    $("#coachView").innerHTML =
+      '<div class="card" style="border-color:rgba(0,240,255,.35)">' +
+      '<h2>گزارش مربی</h2><p class="step-sub">این برنامه جهت بررسی و تأیید نهایی شما آماده است.</p>' +
+      flagsHtml(d) +
+      "<h3>نقشه درد</h3>" +
+      (d.painMap.length
+        ? '<ul class="tips">' + d.painMap.map(p => "<li><b>" + esc(p.zone) + "</b> · " + esc(p.time) + " · جراحی: <b>" + (p.surgery === "yes" ? "بله" + (p.surgNote ? " (" + esc(p.surgNote) + ")" : "") : "خیر") + "</b></li>").join("") + "</ul>"
+        : '<p style="color:var(--muted); font-size:13.5px">دردی علامت زده نشده است.</p>') +
+      (d.condition ? '<h3 style="margin-top:14px">بیماری/دارو</h3><p style="font-size:14px">' + esc(d.condition) + "</p>" : "") +
+      "</div>";
+  } else {
+    $("#coachView").innerHTML = "";
+    $("#coachView").classList.add("hidden");
+    $("#tabTrainee").classList.add("on"); $("#tabCoach").classList.remove("on");
+    $("#traineeView").classList.remove("hidden");
+  }
+}
+
+/* events */
+$$(".finishBtn").forEach(b => b.addEventListener("click", () => {
+  const key = pathDef().steps[curIdx];
+  if(!validateKey(key)) return;
+  const profile = calculateProfile();
+  renderResults(profile);
+  $("#wizard").classList.add("hidden");
+  $("#results").classList.add("show");
+  window.scrollTo({ top:0, behavior:"smooth" });
+}));
+$("#tabTrainee").addEventListener("click", () => {
+  $("#tabTrainee").classList.add("on"); $("#tabCoach").classList.remove("on");
+  $("#traineeView").classList.remove("hidden"); $("#coachView").classList.add("hidden");
+});
+$("#tabCoach").addEventListener("click", () => {
+  $("#tabCoach").classList.add("on"); $("#tabTrainee").classList.remove("on");
+  $("#coachView").classList.remove("hidden"); $("#traineeView").classList.add("hidden");
+});
+$("#restartBtn").addEventListener("click", () => {
+  $("#results").classList.remove("show");
+  $("#wizard").classList.remove("hidden");
+  showStep(0);
+  window.scrollTo({ top:0, behavior:"smooth" });
+});
+$("#downloadBtn").addEventListener("click", () => {
+  const content = $("#traineeView").innerHTML + $("#coachView").innerHTML;
+  const html = '<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><title>گزارش تمرینی</title><style>body{font-family:Tahoma,sans-serif;background:#07090E;color:#fff;padding:20px;direction:rtl}.card{background:#0F141C;border:1px solid #333;padding:16px;border-radius:12px;margin-bottom:12px}.session{border:1px solid #333;border-radius:10px;margin-top:10px}table{width:100%;border-collapse:collapse}td,th{padding:8px;border-bottom:1px solid #222}</style></head><body>' + content + "</body></html>";
+  const blob = new Blob([html], { type:"text/html;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "coach-report.html";
+  document.body.appendChild(a); a.click(); a.remove();
+});
+
+showStep(0);
+</script>
+</body>
+</html>
