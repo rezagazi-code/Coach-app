@@ -1275,3 +1275,4 @@
 }
 .cp-note:focus { border-color: rgba(212, 255, 0, 0.55); }
 .cp-save { align-self: flex-start; padding: 11px 24px; font-size: 14px; }
+.auth-field-error { color: #ff9db8; font-size: 12px; font-weight: 700; line-height: 1.6; }

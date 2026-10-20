@@ -13,7 +13,11 @@ import { NOT_CONFIGURED_MESSAGE, useAuth, type AuthErrorCode } from '../lib/auth
 type Screen = 'role' | 'coach' | 'athlete';
 type Mode = 'login' | 'signup';
 
-const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])?$/;
+const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,28}[a-z0-9])?$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+type FieldKey = 'name' | 'slug' | 'email' | 'phone' | 'password' | 'confirm';
+type FieldErrs = Partial<Record<FieldKey, string>>;
 
 /** Derive a url-safe slug from an email local part / latin name (§18.2). */
 function deriveSlug(source: string): string {
@@ -28,16 +32,24 @@ function Field({
   label,
   children,
   hint,
+  error,
 }: {
   label: string;
   children: ReactNode;
   hint?: string;
+  error?: string;
 }) {
   return (
     <label className="auth-field">
       <span className="auth-label">{label}</span>
       {children}
-      {hint ? <span className="auth-hint">{hint}</span> : null}
+      {error ? (
+        <span className="auth-field-error" role="alert">
+          {error}
+        </span>
+      ) : hint ? (
+        <span className="auth-hint">{hint}</span>
+      ) : null}
     </label>
   );
 }
@@ -56,6 +68,9 @@ export default function AuthGate({ onNewAthlete }: { onNewAthlete: () => void })
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [fieldErrs, setFieldErrs] = useState<FieldErrs>({});
+  const clearField = (k: FieldKey) =>
+    setFieldErrs((prev) => (prev[k] ? { ...prev, [k]: undefined } : prev));
 
   // coach form
   const [name, setName] = useState('');
@@ -99,28 +114,24 @@ export default function AuthGate({ onNewAthlete }: { onNewAthlete: () => void })
     e.preventDefault();
     setError(null);
     setNotice(null);
-    if (!guardConfigured()) return;
+    // Per-field validation first: the error lands under the exact field
+    // that is missing/invalid (and clears live as the user types), instead
+    // of one generic "all fields required" for the whole form.
+    const errs: FieldErrs = {};
     if (mode === 'signup') {
-      if (!name.trim() || !email.trim() || !password || !confirm || !slug) {
-        setError(t('auth.errRequired'));
-        return;
-      }
-      if (!SLUG_RE.test(slug)) {
-        setError(t('auth.errSlug'));
-        return;
-      }
-      if (password.length < 8) {
-        setError(t('auth.errPasswordShort'));
-        return;
-      }
-      if (password !== confirm) {
-        setError(t('auth.errPasswordMismatch'));
-        return;
-      }
-    } else if (!email.trim() || !password) {
-      setError(t('auth.errRequired'));
-      return;
+      if (!name.trim()) errs.name = t('auth.errFieldRequired');
+      if (!slug) errs.slug = t('auth.errFieldRequired');
+      else if (!SLUG_RE.test(slug)) errs.slug = t('auth.errSlug');
+      if (!confirm) errs.confirm = t('auth.errFieldRequired');
+      else if (password && password !== confirm) errs.confirm = t('auth.errPasswordMismatch');
     }
+    if (!email.trim()) errs.email = t('auth.errFieldRequired');
+    else if (!EMAIL_RE.test(email.trim())) errs.email = t('auth.errEmailInvalid');
+    if (!password) errs.password = t('auth.errFieldRequired');
+    else if (mode === 'signup' && password.length < 8) errs.password = t('auth.errPasswordShort');
+    setFieldErrs(errs);
+    if (Object.keys(errs).length > 0) return;
+    if (!guardConfigured()) return;
     setBusy(true);
     const res =
       mode === 'login'
@@ -134,11 +145,12 @@ export default function AuthGate({ onNewAthlete }: { onNewAthlete: () => void })
     e.preventDefault();
     setError(null);
     setNotice(null);
+    const errs: FieldErrs = {};
+    if (!phone.trim()) errs.phone = t('auth.errFieldRequired');
+    if (!password) errs.password = t('auth.errFieldRequired');
+    setFieldErrs(errs);
+    if (Object.keys(errs).length > 0) return;
     if (!guardConfigured()) return;
-    if (!phone.trim() || !password) {
-      setError(t('auth.errRequired'));
-      return;
-    }
     setBusy(true);
     const res = await auth.signInAthlete(phone, password);
     setBusy(false);
@@ -150,6 +162,7 @@ export default function AuthGate({ onNewAthlete }: { onNewAthlete: () => void })
     setMode(nextMode);
     setError(null);
     setNotice(null);
+    setFieldErrs({});
   };
 
   return (
@@ -197,14 +210,14 @@ export default function AuthGate({ onNewAthlete }: { onNewAthlete: () => void })
       )}
 
       {screen === 'coach' && (
-        <form className="auth-block" onSubmit={submitCoach}>
+        <form className="auth-block" noValidate onSubmit={submitCoach}>
           <button type="button" className="auth-back" onClick={() => go('role')}>
             {t('auth.back')}
           </button>
           <h1 className="auth-title">{mode === 'login' ? t('auth.coachLogin') : t('auth.coachSignup')}</h1>
           {mode === 'signup' && (
             <>
-              <Field label={t('auth.fullName')}>
+              <Field label={t('auth.fullName')} error={fieldErrs.name}>
                 <input
                   {...inputProps}
                   dir={undefined}
@@ -212,18 +225,20 @@ export default function AuthGate({ onNewAthlete }: { onNewAthlete: () => void })
                   value={name}
                   autoComplete="name"
                   onChange={(e) => {
+                    clearField('name');
                     setName(e.target.value);
                     if (!slugTouched) setSlug(deriveSlug(e.target.value));
                   }}
                 />
               </Field>
-              <Field label={t('auth.slug')} hint={t('auth.slugHint')}>
+              <Field label={t('auth.slug')} hint={t('auth.slugHint')} error={fieldErrs.slug}>
                 <input
                   {...inputProps}
                   type="text"
                   value={slug}
                   autoComplete="username"
                   onChange={(e) => {
+                    clearField('slug');
                     setSlugTouched(true);
                     setSlug(e.target.value.toLowerCase());
                   }}
@@ -231,7 +246,7 @@ export default function AuthGate({ onNewAthlete }: { onNewAthlete: () => void })
               </Field>
             </>
           )}
-          <Field label={t('auth.email')}>
+          <Field label={t('auth.email')} error={fieldErrs.email}>
             <input
               {...inputProps}
               type="email"
@@ -239,28 +254,35 @@ export default function AuthGate({ onNewAthlete }: { onNewAthlete: () => void })
               value={email}
               autoComplete="email"
               onChange={(e) => {
+                clearField('email');
                 setEmail(e.target.value);
                 if (mode === 'signup' && !slugTouched) setSlug(deriveSlug(e.target.value.split('@')[0] ?? ''));
               }}
             />
           </Field>
-          <Field label={t('auth.password')}>
+          <Field label={t('auth.password')} error={fieldErrs.password}>
             <input
               {...inputProps}
               type="password"
               value={password}
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                clearField('password');
+                setPassword(e.target.value);
+              }}
             />
           </Field>
           {mode === 'signup' && (
-            <Field label={t('auth.confirmPassword')}>
+            <Field label={t('auth.confirmPassword')} error={fieldErrs.confirm}>
               <input
                 {...inputProps}
                 type="password"
                 value={confirm}
                 autoComplete="new-password"
-                onChange={(e) => setConfirm(e.target.value)}
+                onChange={(e) => {
+                  clearField('confirm');
+                  setConfirm(e.target.value);
+                }}
               />
             </Field>
           )}
@@ -276,6 +298,7 @@ export default function AuthGate({ onNewAthlete }: { onNewAthlete: () => void })
               setMode(mode === 'login' ? 'signup' : 'login');
               setError(null);
               setNotice(null);
+              setFieldErrs({});
             }}
           >
             {mode === 'login' ? t('auth.noAccount') : t('auth.haveAccount')}
@@ -284,28 +307,34 @@ export default function AuthGate({ onNewAthlete }: { onNewAthlete: () => void })
       )}
 
       {screen === 'athlete' && (
-        <form className="auth-block" onSubmit={submitAthlete}>
+        <form className="auth-block" noValidate onSubmit={submitAthlete}>
           <button type="button" className="auth-back" onClick={() => go('role')}>
             {t('auth.back')}
           </button>
           <h1 className="auth-title">{t('auth.athleteLogin')}</h1>
-          <Field label={t('auth.phone')}>
+          <Field label={t('auth.phone')} error={fieldErrs.phone}>
             <input
               {...inputProps}
               type="tel"
               inputMode="tel"
               value={phone}
               autoComplete="tel"
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => {
+                clearField('phone');
+                setPhone(e.target.value);
+              }}
             />
           </Field>
-          <Field label={t('auth.password')}>
+          <Field label={t('auth.password')} error={fieldErrs.password}>
             <input
               {...inputProps}
               type="password"
               value={password}
               autoComplete="current-password"
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                clearField('password');
+                setPassword(e.target.value);
+              }}
             />
           </Field>
           {error && <div className="auth-error">{error}</div>}
