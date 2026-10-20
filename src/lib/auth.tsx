@@ -50,14 +50,55 @@ export type AuthStatus =
   | 'loading' // first session check in flight
   | 'signedOut' // configured, no session → the gate
   | 'pending' // coach account exists but is_active=false → approval gate
+  | 'completeCoachProfile' // email user, no profile rows at all → finish coach signup
   | 'signedIn'; // session + bootstrap resolved → the 5 tabs
 
 export type AuthErrorCode =
   | 'wrong' // bad credentials
   | 'taken' // phone/email already registered
-  | 'checkEmail' // signup ok but no session yet (confirmation unexpectedly ON)
+  | 'checkEmail' // signup ok but no session yet (email confirmation unexpectedly ON)
+  | 'checkPhone' // athlete signup ok but no session (phone confirmation ON; no SMS flow in v1)
+  | 'phoneOff' // phone provider disabled on the server — athlete auth cannot work at all
   | 'busy' // still 429 after backoff
   | 'generic';
+
+/** Coach signup data captured when "Confirm email" is unexpectedly ON:
+ *  the profile row cannot be written until a session exists, so the
+ *  intent is parked locally and completed at first login (bootstrap). */
+const PENDING_COACH_KEY = 'km.pendingCoachProfile.v1';
+
+interface PendingCoachProfile {
+  userId: string;
+  name: string;
+  slug: string;
+}
+
+function storePendingCoachProfile(p: PendingCoachProfile): void {
+  try {
+    localStorage.setItem(PENDING_COACH_KEY, JSON.stringify(p));
+  } catch {
+    /* storage unavailable — the completion form at login is the fallback */
+  }
+}
+
+function readPendingCoachProfile(userId: string): PendingCoachProfile | null {
+  try {
+    const raw = localStorage.getItem(PENDING_COACH_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PendingCoachProfile;
+    return parsed && parsed.userId === userId && parsed.slug ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingCoachProfile(): void {
+  try {
+    localStorage.removeItem(PENDING_COACH_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 export interface AuthResult {
   ok: boolean;
@@ -77,6 +118,9 @@ interface AuthCtx {
   signUpCoach: (input: { name: string; email: string; password: string; slug: string }) => Promise<AuthResult>;
   signInAthlete: (phone: string, password: string) => Promise<AuthResult>;
   signUpAthlete: (input: { name: string; phone: string; password: string }) => Promise<AuthResult>;
+  /** Finish a coach signup whose profile write was deferred by email
+   *  confirmation (bootstrap status 'completeCoachProfile'). */
+  completeCoachProfile: (input: { name: string; slug: string }) => Promise<AuthResult>;
   signOut: () => Promise<void>;
   /** Re-run the §18.3 bootstrap (pending screen "check again"). */
   refresh: () => Promise<void>;
@@ -121,6 +165,13 @@ async function callAuth<T extends { error: AuthError | null }>(fn: () => Promise
 function mapAuthError(error: AuthError): AuthErrorCode {
   if (error.status === 429) return 'busy';
   const msg = error.message.toLowerCase();
+  const code = (error as { code?: string }).code;
+  // Phone provider disabled server-side (live-verified on morabi-man
+  // 2026-10-21: external.phone=false). Name it honestly instead of a
+  // generic error — the fix is a dashboard toggle, not a user mistake.
+  if (code === 'phone_provider_disabled' || msg.includes('phone logins are disabled')) {
+    return 'phoneOff';
+  }
   if (msg.includes('already registered') || msg.includes('already exists') || msg.includes('user already')) {
     return 'taken';
   }
@@ -176,6 +227,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAthlete(myAthlete);
         setCurrentAthleteId(myAthlete?.id ?? null);
         if (myAthlete) void flushQueue(); // stamp queued pre-login writes
+        if (!myAthlete && !myRole && !myCoach && !next.user.phone) {
+          // ORPHAN email identity: no role, no coach row, no athlete row.
+          // This is a coach whose profile insert never ran — with
+          // "Confirm email" unexpectedly ON, signUpCoach returns before a
+          // session exists (the PadelPro signup-block trap class). Phone
+          // identities are excluded: a row-less phone user is an athlete
+          // whose profile was deferred (no active coach seeded yet).
+          // Heal from the stored signup intent; without one (confirmed on
+          // another device), route to the completion form — never
+          // silently into the athlete shell with the wrong role.
+          const intent = readPendingCoachProfile(userId);
+          if (intent) {
+            try {
+              await createCoachProfile({ user_id: userId, slug: intent.slug, display_name: intent.name });
+              clearPendingCoachProfile();
+              const healed = await fetchCoachByUserId(userId);
+              if (run !== runRef.current) return;
+              if (healed) {
+                setCoach(healed);
+                setStatus(healed.is_active ? 'signedIn' : 'pending');
+                return;
+              }
+            } catch (err) {
+              console.error('[auth] pending coach profile completion failed', err);
+              clearPendingCoachProfile();
+            }
+          }
+          setStatus('completeCoachProfile');
+          return;
+        }
       }
       setStatus('signedIn');
     } catch (err) {
@@ -229,7 +310,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!res.data.session) {
         // §18 expects "Confirm email" OFF, so a session should exist. If the
         // dashboard has it ON, the profile write must wait for first login —
+        // park the intent locally so bootstrap can complete it then, and
         // tell the user to confirm + log in instead of failing silently.
+        storePendingCoachProfile({ userId: user.id, name: input.name.trim(), slug: input.slug });
         return { ok: false, code: 'checkEmail' };
       }
       try {
@@ -272,7 +355,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const user = res.data.user;
       if (!user) return { ok: false, code: 'generic' };
-      if (!res.data.session) return { ok: false, code: 'checkEmail' };
+      // Phone confirmation ON would need an SMS OTP flow v1 doesn't have —
+      // report it as its own state, never as "confirm your email".
+      if (!res.data.session) return { ok: false, code: 'checkPhone' };
       // §18.1 step 6: athletes row → primary membership. The v6 self-insert
       // policy requires an ACTIVE coach, resolved from the coach's slug.
       // If no active coach is seeded yet the profile write is skipped (the
@@ -298,6 +383,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ok: true };
     },
     [bootstrap]
+  );
+
+  const completeCoachProfile = useCallback(
+    async (input: { name: string; slug: string }): Promise<AuthResult> => {
+      if (!isSupabaseConfigured || !session) return { ok: false, code: 'generic' };
+      try {
+        // Same §18.2 step 1 as signUpCoach: INACTIVE profile, role on approval.
+        await createCoachProfile({ user_id: session.user.id, slug: input.slug, display_name: input.name.trim() });
+      } catch (err) {
+        console.error('[auth] coach profile completion failed', err);
+        return { ok: false, code: 'generic' };
+      }
+      clearPendingCoachProfile();
+      await bootstrap(session);
+      return { ok: true };
+    },
+    [bootstrap, session]
   );
 
   const signOut = useCallback(async () => {
@@ -333,11 +435,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUpCoach,
       signInAthlete,
       signUpAthlete,
+      completeCoachProfile,
       signOut,
       refresh,
       enterDemo,
     }),
-    [status, demo, session, role, coach, athlete, signInCoach, signUpCoach, signInAthlete, signUpAthlete, signOut, refresh, enterDemo]
+    [status, demo, session, role, coach, athlete, signInCoach, signUpCoach, signInAthlete, signUpAthlete, completeCoachProfile, signOut, refresh, enterDemo]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

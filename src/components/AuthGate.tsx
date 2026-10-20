@@ -9,6 +9,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useLang } from '../lib/i18n';
 import { NOT_CONFIGURED_MESSAGE, useAuth, type AuthErrorCode } from '../lib/auth';
+import { APP_VERSION } from '../lib/version';
 
 type Screen = 'role' | 'coach' | 'athlete';
 type Mode = 'login' | 'signup';
@@ -96,6 +97,13 @@ export default function AuthGate({ onNewAthlete }: { onNewAthlete: () => void })
       case 'checkEmail':
         setNotice(t('auth.errCheckEmail'));
         setMode('login');
+        break;
+      case 'checkPhone':
+        setNotice(t('auth.errCheckPhone'));
+        setMode('login');
+        break;
+      case 'phoneOff':
+        setError(t('auth.errPhoneOff'));
         break;
       default:
         setError(t('auth.errGeneric'));
@@ -347,6 +355,78 @@ export default function AuthGate({ onNewAthlete }: { onNewAthlete: () => void })
           </button>
         </form>
       )}
+      {/* Build marker reachable while logged out (PadelPro lesson: a
+          version line hidden behind the auth gate can never be verified
+          from a live check). Single source: package.json. */}
+      <div className="auth-version">
+        {t('auth.versionLabel')} {APP_VERSION}
+      </div>
+    </div>
+  );
+}
+
+/** Orphan-coach recovery: the account exists (email confirmed after a
+ *  signup whose profile write was deferred) but no coach profile row was
+ *  ever created. Collect name + slug, create the INACTIVE profile via
+ *  completeCoachProfile, and bootstrap routes to pending approval. */
+export function CoachProfileCompletion() {
+  const { t } = useLang();
+  const auth = useAuth();
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrs, setFieldErrs] = useState<{ name?: string; slug?: string }>({});
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const errs: { name?: string; slug?: string } = {};
+    if (!name.trim()) errs.name = t('auth.errFieldRequired');
+    if (!slug) errs.slug = t('auth.errFieldRequired');
+    else if (!SLUG_RE.test(slug)) errs.slug = t('auth.errSlug');
+    setFieldErrs(errs);
+    if (Object.keys(errs).length > 0) return;
+    setBusy(true);
+    setError(null);
+    const res = await auth.completeCoachProfile({ name, slug });
+    setBusy(false);
+    if (!res.ok) setError(t('auth.errGeneric'));
+  };
+
+  return (
+    <div className="auth-scroll">
+      <div className="auth-block neon-rise">
+        <h1 className="auth-title">{t('auth.completeTitle')}</h1>
+        <p className="auth-sub">{t('auth.completeBody')}</p>
+        <form onSubmit={submit} noValidate>
+          <Field label={t('auth.fullName')} error={fieldErrs.name}>
+            <input
+              {...inputProps}
+              dir={undefined}
+              type="text"
+              value={name}
+              autoComplete="name"
+              onChange={(e) => setName(e.target.value)}
+            />
+          </Field>
+          <Field label={t('auth.slug')} hint={t('auth.slugHint')} error={fieldErrs.slug}>
+            <input
+              {...inputProps}
+              type="text"
+              value={slug}
+              autoComplete="username"
+              onChange={(e) => setSlug(e.target.value.toLowerCase())}
+            />
+          </Field>
+          {error && <div className="auth-error">{error}</div>}
+          <button type="submit" className="neon-btn neon-burst auth-submit" disabled={busy}>
+            {busy ? t('auth.pleaseWait') : t('auth.completeSubmit')}
+          </button>
+          <button type="button" className="auth-switch" onClick={() => void auth.signOut()}>
+            {t('auth.logout')}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

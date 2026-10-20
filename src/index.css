@@ -907,6 +907,14 @@
   -webkit-overflow-scrolling: touch;
   padding: 20px 16px calc(28px + env(safe-area-inset-bottom, 0px));
 }
+.auth-version {
+  margin-top: 22px;
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--text-dim, #8a93a6);
+  opacity: 0.75;
+}
 .auth-block {
   display: flex;
   flex-direction: column;

@@ -23,7 +23,7 @@ import { useState, type CSSProperties } from 'react';
 import { LangProvider, useLang } from './lib/i18n';
 import { AuthProvider, useAuth } from './lib/auth';
 import Header from './components/Header';
-import AuthGate, { PendingApproval } from './components/AuthGate';
+import AuthGate, { CoachProfileCompletion, PendingApproval } from './components/AuthGate';
 import CoachPanel from './components/CoachPanel';
 import AthleteOnboarding from './components/AthleteOnboarding';
 import TabBar, { type TabId } from './components/TabBar';
@@ -105,6 +105,8 @@ function Root() {
       <Header />
       {auth.status === 'pending' ? (
         <PendingApproval />
+      ) : auth.status === 'completeCoachProfile' ? (
+        <CoachProfileCompletion />
       ) : onboarding ? (
         <AthleteOnboarding onBack={() => setOnboarding(false)} />
       ) : (
