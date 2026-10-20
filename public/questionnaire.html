@@ -609,11 +609,243 @@
 </div>
 
 <script>
+/* ================================================================
+   Language layer — follows the app's language:
+   ?lang= query → shared localStorage key "km.lang.v1" (the exact key
+   src/lib/i18n.tsx persists) → FA default. The parent app also pushes
+   live toggles via postMessage {type:"km-set-lang", lang}.
+   FA remains the source language: every original string is kept and
+   restored verbatim when switching back.
+================================================================ */
+const LANG_KEY = "km.lang.v1";
+function resolveLang(){
+  try { const q = new URLSearchParams(location.search).get("lang"); if(q === "en" || q === "fa") return q; } catch(e){}
+  try { const v = localStorage.getItem(LANG_KEY); if(v === "en" || v === "fa") return v; } catch(e){}
+  return "fa";
+}
+let LANG = resolveLang();
+const EN = () => LANG === "en";
+const tx = (fa, en) => (EN() ? en : fa);
+
+const EN_TEXT = {
+  "(اختیاری)": "(optional)",
+  "(اختیاری — فشار خون، آسم، دیابت و...)": "(optional — blood pressure, asthma, diabetes, …)",
+  "(هر جلسه ۶۰ دقیقه ثابت)": "(each session fixed at 60 min)",
+  "(هر جلسه ۶۰ دقیقه)": "(each session 60 min)",
+  "در صورت وجود درج نمایید...": "If any, write it here…",
+  "مثلاً: سام رادین": "e.g. Sam Radin",
+  "مثلاً: کشیدگی شانه راست": "e.g. right shoulder strain",
+  "مثلاً: ۱۸۲": "e.g. 182",
+  "مثلاً: ۲۹": "e.g. 29",
+  "مثلاً: ۷.۵": "e.g. 7.5",
+  "مثلاً: ۷۹": "e.g. 79",
+  "مربی": "My Coach",
+  "من": "",
+  "دستیار هوشمند مربی": "Smart coach assistant",
+  "پرسش‌نامه هوشمند": "Smart Questionnaire",
+  "مربیگری ورزشی": "Sports Coaching",
+  "مسیر خود را انتخاب کنید؛ بر اساس اطلاعات بدنی، هدف و وضعیت سلامت شما، برنامه تمرینی علمی و شخصی‌سازی‌شده طراحی می‌شود.": "Choose your track; a scientific, personalized training program is designed from your body info, goal and health status.",
+  "قدم ۱ از ۶": "Step 1 of 6",
+  "۱۵٪": "15%",
+  "مسیر تمرینی شما": "Your training track",
+  "مسیر خود را انتخاب کنید تا برنامه مخصوص همان حالت طراحی شود:": "Choose your track so the program is designed for that mode:",
+  "بدنسازی و فیتنس": "Gym & fitness",
+  "برنامه کامل باشگاهی؛ بدون بخش تخصصی پدل": "Full gym program; no specialized padel section",
+  "بدنسازی + پدل": "Gym + padel",
+  "پکیج VIP": "VIP package",
+  "برنامه باشگاهی هماهنگ با نیازهای پدل، نقشه درد و آمادگی مسابقه": "Gym program aligned with padel needs, pain map and match readiness",
+  "فقط پدل (با مربی)": "Padel only (with coach)",
+  "تمرین تکنیک و تاکتیک در کورت + روتین موبیلیتی و پیشگیری خانگی": "Technique & tactics on court + home mobility and prevention routine",
+  "فقط برنامه هوشمند (بدون مربی)": "AI program only (no coach)",
+  "محصول پولی": "Paid product",
+  "تولید خودکار برنامه با غربالگری ایمنی؛ بدون بررسی مربی": "Automatic program with safety screening; no coach review",
+  "لطفاً یکی از مسیرها را انتخاب کنید.": "Please choose a track.",
+  "شروع ارزیابی ←": "Start assessment →",
+  "مشخصات بدنی پایه": "Basic body info",
+  "این اطلاعات برای محاسبه شاخص توده بدنی و تخمین کالری روزانه لازم است.": "This information is needed to calculate your BMI and estimate daily calories.",
+  "نام و نام خانوادگی": "Full name",
+  "سن (سال) *": "Age (years) *",
+  "قد (سانتی‌متر) *": "Height (cm) *",
+  "وزن (کیلوگرم) *": "Weight (kg) *",
+  "جنسیت *": "Gender *",
+  "مرد": "Male",
+  "زن": "Female",
+  "شاخص توده بدنی شما (BMI):": "Your BMI:",
+  "لطفاً مقادیر معتبر قد، وزن، سن و جنسیت را وارد نمایید.": "Please enter valid height, weight, age and gender.",
+  "قدم بعد ←": "Next step →",
+  "هدف اصلی شما در این دوره": "Your main goal this cycle",
+  "برنامه تمرینی و راهنمای تغذیه بر مبنای این هدف تنظیم می‌شود:": "Your training program and nutrition guidance are based on this goal:",
+  "آمادگی برای پدل": "Padel readiness",
+  "قدرت چرخشی، چابکی و پیشگیری از آسیب شانه و آرنج": "Rotational power, agility and shoulder/elbow injury prevention",
+  "کاهش وزن و چربی‌سوزی": "Weight loss & fat burn",
+  "کسری کالری هوشمند بدون افت توان عضلانی": "Smart calorie deficit without losing muscle strength",
+  "افزایش حجم عضلانی": "Build muscle mass",
+  "تمرکز روی فرم‌دهی و افزایش توده عضلانی": "Focus on shaping and adding muscle mass",
+  "افزایش قدرت پایه": "Build base strength",
+  "تمرکز روی الگوهای حرکتی اصلی": "Focus on fundamental movement patterns",
+  "سلامت عمومی و تناسب اندام": "General health & fitness",
+  "تمرین پایدار برای رفع کم‌تحرکی و خشکی مفاصل": "Sustainable training to fix inactivity and stiff joints",
+  "لطفاً یک هدف را مشخص کنید.": "Please choose a goal.",
+  "→ برگشت": "← Back",
+  "سلامت مفاصل و سابقه آسیب": "Joint health & injury history",
+  "برای جلوگیری از آسیب، حرکات پرخطر به طور خودکار با جایگزین‌های امن تعویض می‌شوند.": "To prevent injury, high-risk movements are automatically swapped for safer alternatives.",
+  "سطح سابقه تمرین با وزنه *": "Weight-training experience *",
+  "تازه‌کار (کمتر از ۶ ماه)": "Beginner (less than 6 months)",
+  "متوسط (۶ ماه تا ۲ سال)": "Intermediate (6 months to 2 years)",
+  "پیشرفته (بیش از ۲ سال تمرین منظم)": "Advanced (2+ years of regular training)",
+  "سابقه آسیب یا درد حین ورزش دارید؟ *": "Do you have a history of injury or pain during exercise? *",
+  "خیر، در سلامت کامل": "No, fully healthy",
+  "بله، سابقه درد یا آسیب دارم": "Yes, I have a history of pain or injury",
+  "محل آسیب یا درد *": "Injury or pain location *",
+  "— انتخاب کنید —": "— Select —",
+  "شانه": "Shoulder",
+  "آرنج": "Elbow",
+  "مچ دست": "Wrist",
+  "کمر و ستون فقرات": "Back & spine",
+  "زانو (مینیسک یا رباط)": "Knee (meniscus or ligament)",
+  "مچ پا": "Ankle",
+  "سایر نواحی": "Other areas",
+  "توضیح کوتاه": "Short description",
+  "آیا روی این ناحیه عمل جراحی انجام شده است؟ *": "Has this area had surgery? *",
+  "بله، جراحی شده": "Yes, had surgery",
+  "خیر": "No",
+  "بیماری یا داروی خاص": "Medical condition or medication",
+  "لطفاً وضعیت سابقه و آسیب را مشخص کنید.": "Please set your experience and injury status.",
+  "آنالیز تخصصی پدل": "Specialized padel analysis",
+  "این بخش برنامه باشگاهی شما را با نیازهای واقعی پدل هماهنگ می‌کند.": "This section aligns your gym program with the real demands of padel.",
+  "پست تخصصی در زمین *": "Your court position *",
+  "سمت چپ": "Left side",
+  "پست تهاجمی، اسمش‌زن اصلی": "Attacking position, main smasher",
+  "سمت راست": "Right side",
+  "پست بازیساز و دفاعی": "Playmaking, defensive position",
+  "نوع بالانس راکت شما *": "Your racket balance type *",
+  "الماسی / سرسنگین": "Diamond / head-heavy",
+  "قدرت اسمش بالا؛ فشار بیشتر روی شانه و مچ": "High smash power; more load on shoulder and wrist",
+  "قطره‌ای / متعادل": "Teardrop / balanced",
+  "ترکیب کنترل و قدرت": "Mix of control and power",
+  "گرد / کنترلی": "Round / control",
+  "کمترین فشار روی آرنج": "Least load on the elbow",
+  "سابقه ورزش‌های راکتی قبلی *": "Previous racket-sport experience *",
+  "تنیس خاکی": "Clay tennis",
+  "اسکواش / بدمینتون": "Squash / badminton",
+  "هیچ‌کدام": "None",
+  "ضربه‌ای که در آن ضعف احساس می‌کنید *": "Shot you feel weakest at *",
+  "باندخا (Bandeja)": "Bandeja",
+  "ویبورا (Vibora)": "Vibora",
+  "اسمش پرشی (Smash)": "Jump smash (Smash)",
+  "باخادا (Bajada)": "Bajada",
+  "جلسات بازی پدل در هفته *": "Padel match sessions per week *",
+  "۱ جلسه (تفریحی)": "1 session (casual)",
+  "۲ جلسه (منظم)": "2 sessions (regular)",
+  "۳ جلسه (پرفشار)": "3 sessions (intense)",
+  "۴ جلسه یا بیشتر (مسابقه‌ای)": "4+ sessions (competitive)",
+  "نقشه درد — اگر حین/بعد بازی دردی حس می‌کنی، کجا و کِی؟": "Pain map — if you feel pain during/after play, where and when?",
+  "لطفاً تمام گزینه‌های ستاره‌دار این بخش را کامل کنید.": "Please complete all starred options in this section.",
+  "پدل (پایه)": "Padel (basic)",
+  "فقط برای هماهنگی کلی برنامه؛ بخش تخصصی ندارد.": "Only for overall program coordination; no specialized section.",
+  "پدل هم بازی می‌کنی؟ *": "Do you also play padel? *",
+  "بله": "Yes",
+  "سطح بازی *": "Playing level *",
+  "مبتدی": "Beginner",
+  "متوسط": "Intermediate",
+  "پیشرفته": "Advanced",
+  "تعداد جلسات پدل در هفته *": "Padel sessions per week *",
+  "۱ جلسه": "1 session",
+  "۲ جلسه": "2 sessions",
+  "۳ جلسه": "3 sessions",
+  "۴ جلسه یا بیشتر": "4+ sessions",
+  "لطفاً وضعیت پدل را مشخص کنید.": "Please set your padel status.",
+  "ریکاوری، خواب و تجهیزات": "Recovery, sleep & equipment",
+  "برای تنظیم حجم تمرین هفتگی و شدت برنامه.": "To set your weekly training volume and program intensity.",
+  "میانگین خواب شبانه (ساعت) *": "Average nightly sleep (hours) *",
+  "ساعت هوشمند داری؟ *": "Do you have a smartwatch? *",
+  "چند روز در هفته می‌توانی باشگاه بروی؟ *": "How many days per week can you go to the gym? *",
+  "۲ روز": "2 days",
+  "۳ روز": "3 days",
+  "۴ روز": "4 days",
+  "۵ روز": "5 days",
+  "هر جلسه باشگاه چند دقیقه؟ *": "How many minutes per gym session? *",
+  "۴۵ دقیقه": "45 min",
+  "۶۰ دقیقه": "60 min",
+  "۷۵ دقیقه": "75 min",
+  "۹۰ دقیقه": "90 min",
+  "تجهیزات در دسترس *": "Available equipment *",
+  "باشگاه بدنسازی کامل": "Full gym",
+  "دمبل و کش خانگی": "Home dumbbells & bands",
+  "لطفاً خواب، روزهای تمرین، مدت جلسه و تجهیزات را مشخص نمایید.": "Please set sleep, training days, session length and equipment.",
+  "ساخت برنامه ✓": "Build my program ✓",
+  "غربالگری ایمنی (اجباری برای برنامه بدون مربی)": "Safety screening (required for the no-coach program)",
+  "اگر پاسخ هر کدام «بله» باشد، برنامه‌ای صادر نمی‌شود و ابتدا باید به پزشک مراجعه کنید:": "If any answer is “yes”, no program is issued and you must see a doctor first:",
+  "۱. حین ورزش درد یا فشار در قفسه سینه حس کرده‌ای؟ *": "1. Have you felt chest pain or pressure during exercise? *",
+  "۲. سابقه غش یا سرگیجه بی‌دلیل داری؟ *": "2. Any history of unexplained fainting or dizziness? *",
+  "۳. بیماری قلبی، فشار خون یا دیابت کنترل‌نشده داری؟ *": "3. Heart disease, uncontrolled blood pressure or diabetes? *",
+  "۴. پزشک ورزش را برای تو محدود یا ممنوع کرده است؟ *": "4. Has a doctor limited or banned exercise for you? *",
+  "لطفاً به هر چهار سؤال ایمنی پاسخ دهید.": "Please answer all four safety questions.",
+  "گزارش تحلیلی و": "Analysis report &",
+  "برنامه تمرینی": "Training program",
+  "اطلاعات شما تحلیل و برنامه تمرینی شخصی‌سازی‌شده طراحی شد.": "Your information was analyzed and a personalized training program was designed.",
+  "نمای شاگرد": "Trainee view",
+  "گزارش مربی": "Coach report",
+  "دانلود گزارش (HTML)": "Download report (HTML)",
+  "ارزیابی مجدد": "Start over",
+  "درد کِی حس می‌شود؟": "When is the pain felt?",
+  "لحظه برخورد": "At impact",
+  "بالای سر (اسمش/باندخا)": "Overhead (smash/bandeja)",
+  "حین ترمز و فرود": "When braking & landing",
+  "صبح روز بعد": "Next morning",
+  "آیا روی این ناحیه عمل جراحی انجام شده؟": "Has this area had surgery?",
+  "توضیح جراحی (اختیاری)": "Surgery details (optional)",
+  "مثلاً: عمل مینیسک، دو سال پیش": "e.g. meniscus surgery, two years ago",
+  "زانو": "Knee",
+  "کمر": "Back"
+};
+
+const _origText = new WeakMap();
+const _origAttr = new WeakMap();
+function translateStatic(){
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while(walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach(n => {
+    if(!_origText.has(n)) _origText.set(n, n.nodeValue);
+    const orig = _origText.get(n), key = orig.trim();
+    if(!key) return;
+    if(EN() && Object.prototype.hasOwnProperty.call(EN_TEXT, key)) n.nodeValue = orig.replace(key, EN_TEXT[key]);
+    else if(!EN()) n.nodeValue = orig;
+  });
+  document.querySelectorAll("[placeholder]").forEach(el => {
+    if(!_origAttr.has(el)) _origAttr.set(el, el.getAttribute("placeholder"));
+    const orig = _origAttr.get(el);
+    if(EN() && Object.prototype.hasOwnProperty.call(EN_TEXT, orig)) el.setAttribute("placeholder", EN_TEXT[orig]);
+    else if(!EN()) el.setAttribute("placeholder", orig);
+  });
+}
+
+function applyLang(l, rerender){
+  LANG = l === "en" ? "en" : "fa";
+  try { localStorage.setItem(LANG_KEY, LANG); } catch(e){}
+  document.documentElement.lang = LANG;
+  document.documentElement.dir = EN() ? "ltr" : "rtl";
+  document.title = tx("مربی من — پرسش‌نامه و برنامه تمرینی", "My Coach — Questionnaire & Training Program");
+  translateStatic();
+  if(rerender && typeof showStep === "function"){
+    showStep(curIdx);
+    updateBmiLive();
+    if($("#results").classList.contains("show")) renderResults(calculateProfile());
+  }
+}
+window.addEventListener("message", e => {
+  if(e.data && e.data.type === "km-set-lang") applyLang(e.data.lang, true);
+});
+applyLang(LANG, false);
+</script>
+
+<script>
 "use strict";
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
-function faNum(n){ return String(n).replace(/[0-9]/g, d => FA_DIGITS[d]); }
+function faNum(n){ if(typeof LANG !== "undefined" && LANG === "en") return String(n); return String(n).replace(/[0-9]/g, d => FA_DIGITS[d]); }
 function parseNum(v){
   if(v == null) return NaN;
   const s = String(v).replace(/[۰-۹]/g, d => FA_DIGITS.indexOf(d)).replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(",", ".");
@@ -625,10 +857,10 @@ function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace
 /* BMI */
 function bmiOf(h, w){ const m = h/100; return w/(m*m); }
 function bmiCat(b){
-  if(b < 18.5) return { key:"u", label:"کمبود وزن" };
-  if(b < 25) return { key:"n", label:"متناسب" };
-  if(b < 30) return { key:"o", label:"اضافه وزن" };
-  return { key:"ob", label:"چاقی" };
+  if(b < 18.5) return { key:"u", label:tx("کمبود وزن","Underweight") };
+  if(b < 25) return { key:"n", label:tx("متناسب","Normal") };
+  if(b < 30) return { key:"o", label:tx("اضافه وزن","Overweight") };
+  return { key:"ob", label:tx("چاقی","Obese") };
 }
 function updateBmiLive(){
   const h = parseNum($("#fHeight").value), w = parseNum($("#fWeight").value);
@@ -636,7 +868,7 @@ function updateBmiLive(){
   if(h >= 100 && h <= 230 && w >= 30 && w <= 250){
     const b = bmiOf(h,w), c = bmiCat(b);
     $("#bmiVal").textContent = faNum(b.toFixed(1));
-    $("#bmiCat").textContent = "وضعیت: " + c.label;
+    $("#bmiCat").textContent = tx("وضعیت: ","Status: ") + c.label;
     ["u","n","o","ob"].forEach(k => { $("#bs" + ({ u:"U", n:"N", o:"O", ob:"Ob" }[k])).classList.toggle("off", k !== c.key); });
     box.classList.add("show");
   } else box.classList.remove("show");
@@ -654,28 +886,30 @@ $$('input[name="pbPlay"]').forEach(r => r.addEventListener("change", () => {
 
 /* Pain map */
 const PAIN_ZONES = [
-  { k:"shoulder", t:"شانه" },
-  { k:"elbow", t:"آرنج" },
-  { k:"knee", t:"زانو" },
-  { k:"back", t:"کمر" },
-  { k:"ankle", t:"مچ پا" }
+  { k:"shoulder", fa:"شانه", en:"Shoulder" },
+  { k:"elbow", fa:"آرنج", en:"Elbow" },
+  { k:"knee", fa:"زانو", en:"Knee" },
+  { k:"back", fa:"کمر", en:"Back" },
+  { k:"ankle", fa:"مچ پا", en:"Ankle" }
 ];
-const PAIN_TIMES = { impact:"لحظه برخورد", overhead:"بالای سر (اسمش/باندخا)", lunge:"حین ترمز و فرود", morning:"صبح روز بعد" };
+const PAIN_TIMES = { impact:{fa:"لحظه برخورد",en:"At impact"}, overhead:{fa:"بالای سر (اسمش/باندخا)",en:"Overhead (smash/bandeja)"}, lunge:{fa:"حین ترمز و فرود",en:"When braking & landing"}, morning:{fa:"صبح روز بعد",en:"Next morning"} };
+const painZoneLabel = z => (EN() ? z.en : z.fa);
+const painTimeLabel = k => { const e = PAIN_TIMES[k]; return e ? (EN() ? e.en : e.fa) : "—"; };
 function buildPainMap(id){
   const box = document.getElementById(id);
   box.innerHTML = PAIN_ZONES.map(z =>
-    '<div class="pm-row" data-zone="' + z.k + '" data-zonet="' + z.t + '">' +
-      '<label class="pm-check"><input type="checkbox" class="pm-toggle" /> ' + z.t + "</label>" +
+    '<div class="pm-row" data-zone="' + z.k + '" data-zonek="' + z.k + '">' +
+      '<label class="pm-check"><input type="checkbox" class="pm-toggle" /> ' + painZoneLabel(z) + "</label>" +
       '<div class="pm-detail">' +
-        '<div><label>درد کِی حس می‌شود؟</label><select class="pm-time"><option value="">— انتخاب کنید —</option>' +
-          Object.keys(PAIN_TIMES).map(k => '<option value="' + k + '">' + PAIN_TIMES[k] + "</option>").join("") +
+        '<div><label>' + tx("درد کِی حس می‌شود؟","When is the pain felt?") + '</label><select class="pm-time"><option value="">' + tx("— انتخاب کنید —","— Select —") + '</option>' +
+          Object.keys(PAIN_TIMES).map(k => '<option value="' + k + '">' + painTimeLabel(k) + "</option>").join("") +
         "</select></div>" +
-        '<div class="pm-surg"><div class="pm-surg-q">آیا روی این ناحیه عمل جراحی انجام شده؟</div>' +
+        '<div class="pm-surg"><div class="pm-surg-q">' + tx("آیا روی این ناحیه عمل جراحی انجام شده؟","Has this area had surgery?") + '</div>' +
           '<div class="pm-surg-opts">' +
-            '<label><input type="radio" name="' + id + '-surg-' + z.k + '" value="yes" /> بله</label>' +
-            '<label><input type="radio" name="' + id + '-surg-' + z.k + '" value="no" /> خیر</label>' +
+            '<label><input type="radio" name="' + id + '-surg-' + z.k + '" value="yes" /> ' + tx("بله","Yes") + '</label>' +
+            '<label><input type="radio" name="' + id + '-surg-' + z.k + '" value="no" /> ' + tx("خیر","No") + '</label>' +
           "</div>" +
-          '<div class="pm-surg-note"><label>توضیح جراحی (اختیاری)</label><input type="text" class="pm-surg-txt" placeholder="مثلاً: عمل مینیسک، دو سال پیش" /></div>' +
+          '<div class="pm-surg-note"><label>' + tx("توضیح جراحی (اختیاری)","Surgery details (optional)") + '</label><input type="text" class="pm-surg-txt" placeholder="' + tx("مثلاً: عمل مینیسک، دو سال پیش","e.g. meniscus surgery, two years ago") + '" /></div>' +
         "</div>" +
       "</div></div>"
   ).join("");
@@ -694,9 +928,10 @@ function readPainMap(id){
   document.querySelectorAll("#" + id + " .pm-row").forEach(r => {
     if(r.querySelector(".pm-toggle").checked){
       const sr = r.querySelector('.pm-surg input[type="radio"]:checked');
+      const zk = PAIN_ZONES.find(x => x.k === r.dataset.zonek);
       out.push({
-        zone: r.dataset.zonet,
-        time: PAIN_TIMES[r.querySelector(".pm-time").value] || "—",
+        zone: zk ? painZoneLabel(zk) : "—",
+        time: painTimeLabel(r.querySelector(".pm-time").value),
         surgery: sr ? sr.value : "no",
         surgNote: (r.querySelector(".pm-surg-txt") || {}).value || ""
       });
@@ -707,17 +942,17 @@ function readPainMap(id){
 
 /* Wizard navigation */
 const PATHS = {
-  gym:   { steps:["path","body","goal","health","recovery"], names:["مسیر","مشخصات","هدف","سلامت","ریکاوری"] },
-  vip:   { steps:["path","body","goal","health","vip","recovery"], names:["مسیر","مشخصات","هدف","سلامت","تخصصی پدل","ریکاوری"] },
-  padel: { steps:["path","body","health","vip"], names:["مسیر","مشخصات","سلامت","آنالیز پدل"] },
-  aionly:{ steps:["path","body","goal","health","redflag","padelbasic","recovery"], names:["مسیر","مشخصات","هدف","سلامت","ایمنی","پدل","ریکاوری"] }
+  gym:   { steps:["path","body","goal","health","recovery"], names:["مسیر","مشخصات","هدف","سلامت","ریکاوری"], namesEn:["Track","Body","Goal","Health","Recovery"] },
+  vip:   { steps:["path","body","goal","health","vip","recovery"], names:["مسیر","مشخصات","هدف","سلامت","تخصصی پدل","ریکاوری"], namesEn:["Track","Body","Goal","Health","Padel analysis","Recovery"] },
+  padel: { steps:["path","body","health","vip"], names:["مسیر","مشخصات","سلامت","آنالیز پدل"], namesEn:["Track","Body","Health","Padel analysis"] },
+  aionly:{ steps:["path","body","goal","health","redflag","padelbasic","recovery"], names:["مسیر","مشخصات","هدف","سلامت","ایمنی","پدل","ریکاوری"], namesEn:["Track","Body","Goal","Health","Safety","Padel","Recovery"] }
 };
 let curPath = "gym", curIdx = 0;
 function pathDef(){ return PATHS[curPath]; }
 
 function renderDots(){
   const d = $("#dots"); d.innerHTML = "";
-  pathDef().names.forEach((n,i) => {
+  (EN() ? pathDef().namesEn : pathDef().names).forEach((n,i) => {
     const el = document.createElement("div");
     el.className = "dot" + (i === curIdx ? " on" : i < curIdx ? " done" : "");
     el.textContent = faNum(i+1) + " · " + n;
@@ -731,9 +966,11 @@ function showStep(idx){
   const key = def.steps[curIdx];
   $$(".step").forEach(s => s.classList.toggle("active", s.dataset.key === key));
   renderDots();
-  $("#stepLabel").textContent = "قدم " + faNum(curIdx+1) + " از " + faNum(def.steps.length) + " — " + def.names[curIdx];
+  $("#stepLabel").textContent = EN()
+    ? "Step " + (curIdx+1) + " of " + def.steps.length + " — " + def.namesEn[curIdx]
+    : "قدم " + faNum(curIdx+1) + " از " + faNum(def.steps.length) + " — " + def.names[curIdx];
   const pct = Math.round((curIdx+1)/def.steps.length*100);
-  $("#stepPct").textContent = faNum(pct) + "٪";
+  $("#stepPct").textContent = faNum(pct) + tx("٪","%");
   $("#barFill").style.width = pct + "%";
   window.scrollTo({ top:0, behavior:"smooth" });
 }
@@ -782,22 +1019,24 @@ $$("[data-prev]").forEach(b => b.addEventListener("click", () => showStep(curIdx
    EXERCISE ENGINE
 ================================================================ */
 const EX_DB = {
-  squat:     { name:"اسکوات با وزنه (تکنیک‌محور)", sets:"۳ ست × ۸–۱۰ تکرار کنترل‌شده", note:"زانوها در راستای پنجه؛ عمق تا موازات ران" },
-  deadlift:  { name:"ددلیفت رومانیایی", sets:"۳ ست × ۸–۱۰ تکرار", note:"کمر صاف، حرکت از مفصل ران" },
-  bench:     { name:"پرس سینه دمبل", sets:"۳ ست × ۸–۱۲ تکرار", note:"کتف‌ها عقب و پایین؛ آرنج ۴۵ درجه" },
-  row:       { name:"زیربغل سیم‌کش / بارفیکس کمکی", sets:"۳ ست × ۸–۱۲ تکرار", note:"انقباض ۱ ثانیه‌ای بین دو کتف" },
-  ohp:       { name:"پرس سرشانه دمبل نشسته", sets:"۳ ست × ۸–۱۰ تکرار", note:"کمر به صندلی چسبیده؛ قوس نده" },
-  lunge:     { name:"لانج قدم‌زنی", sets:"۳ ست × ۱۰ قدم هر پا", note:"زانوی جلو از پنجه جلوتر نرود" },
-  plank:     { name:"پلانک", sets:"۳ ست × ۳۰–۴۵ ثانیه", note:"بدن یک خط مستقیم؛ باسن بالا نرود" },
-  facepull:  { name:"فیس‌پول با طناب", sets:"۳ ست × ۱۲–۱۵ تکرار", note:"چرخش خارجی آرنج در انتها" },
-  rotCable:  { name:"وودچاپ کابل مورب", sets:"۳ ست × ۱۰ تکرار هر سمت", note:"چرخش از تنه، نه از دست", tag:"padel" },
-  bulgarian: { name:"اسپلیت اسکوات بلغاری", sets:"۳ ست × ۸–۱۰ تکرار هر پا", note:"پاشنه پای جلو محکم به زمین", tag:"padel" },
-  wristArmor:{ name:"تقویت مچ (ایزومتریک)", sets:"۳ ست × ۲۰ ثانیه", note:"مچ صاف و بدون لرزش", tag:"prev" },
-  mobility:  { name:"روتین موبیلیتی خانگی (۱۰–۱۵ دقیقه)", sets:"روزانه", note:"شانه، لگن، مچ پا؛ بدون وزنه" }
+  squat:     { name:"اسکوات با وزنه (تکنیک‌محور)", sets:"۳ ست × ۸–۱۰ تکرار کنترل‌شده", note:"زانوها در راستای پنجه؛ عمق تا موازات ران", nameEn:"Weighted squat (technique-first)", setsEn:"3 sets × 8–10 controlled reps", noteEn:"Knees track over toes; depth to parallel" },
+  deadlift:  { name:"ددلیفت رومانیایی", sets:"۳ ست × ۸–۱۰ تکرار", note:"کمر صاف، حرکت از مفصل ران", nameEn:"Romanian deadlift", setsEn:"3 sets × 8–10 reps", noteEn:"Flat back, hinge from the hips" },
+  bench:     { name:"پرس سینه دمبل", sets:"۳ ست × ۸–۱۲ تکرار", note:"کتف‌ها عقب و پایین؛ آرنج ۴۵ درجه", nameEn:"Dumbbell bench press", setsEn:"3 sets × 8–12 reps", noteEn:"Shoulders back and down; elbows at 45°" },
+  row:       { name:"زیربغل سیم‌کش / بارفیکس کمکی", sets:"۳ ست × ۸–۱۲ تکرار", note:"انقباض ۱ ثانیه‌ای بین دو کتف", nameEn:"Cable row / assisted pull-up", setsEn:"3 sets × 8–12 reps", noteEn:"Squeeze 1s between the shoulder blades" },
+  ohp:       { name:"پرس سرشانه دمبل نشسته", sets:"۳ ست × ۸–۱۰ تکرار", note:"کمر به صندلی چسبیده؛ قوس نده", nameEn:"Seated dumbbell shoulder press", setsEn:"3 sets × 8–10 reps", noteEn:"Back glued to the bench; don't arch" },
+  lunge:     { name:"لانج قدم‌زنی", sets:"۳ ست × ۱۰ قدم هر پا", note:"زانوی جلو از پنجه جلوتر نرود", nameEn:"Walking lunge", setsEn:"3 sets × 10 steps per leg", noteEn:"Front knee must not pass the toes" },
+  plank:     { name:"پلانک", sets:"۳ ست × ۳۰–۴۵ ثانیه", note:"بدن یک خط مستقیم؛ باسن بالا نرود", nameEn:"Plank", setsEn:"3 sets × 30–45 seconds", noteEn:"Body in one straight line; hips don't rise" },
+  facepull:  { name:"فیس‌پول با طناب", sets:"۳ ست × ۱۲–۱۵ تکرار", note:"چرخش خارجی آرنج در انتها", nameEn:"Rope face pull", setsEn:"3 sets × 12–15 reps", noteEn:"External rotation at the end" },
+  rotCable:  { name:"وودچاپ کابل مورب", sets:"۳ ست × ۱۰ تکرار هر سمت", note:"چرخش از تنه، نه از دست", nameEn:"Diagonal cable wood-chop", setsEn:"3 sets × 10 reps per side", noteEn:"Rotate from the trunk, not the arms", tag:"padel" },
+  bulgarian: { name:"اسپلیت اسکوات بلغاری", sets:"۳ ست × ۸–۱۰ تکرار هر پا", note:"پاشنه پای جلو محکم به زمین", nameEn:"Bulgarian split squat", setsEn:"3 sets × 8–10 reps per leg", noteEn:"Front heel planted firmly", tag:"padel" },
+  wristArmor:{ name:"تقویت مچ (ایزومتریک)", sets:"۳ ست × ۲۰ ثانیه", note:"مچ صاف و بدون لرزش", nameEn:"Wrist strengthening (isometric)", setsEn:"3 sets × 20 seconds", noteEn:"Wrist straight, no shaking", tag:"prev" },
+  mobility:  { name:"روتین موبیلیتی خانگی (۱۰–۱۵ دقیقه)", sets:"روزانه", note:"شانه، لگن، مچ پا؛ بدون وزنه", nameEn:"Home mobility routine (10–15 min)", setsEn:"Daily", noteEn:"Shoulders, hips, ankles; no weights" }
 };
 
 const GOAL_TXT = { padel:"آمادگی پدل", fatloss:"چربی‌سوزی", muscle:"حجم عضلانی", strength:"قدرت پایه", health:"سلامت عمومی" };
+const GOAL_TXT_EN = { padel:"Padel readiness", fatloss:"Fat loss", muscle:"Muscle gain", strength:"Base strength", health:"General health" };
 const LEVEL_TXT = { beginner:"تازه‌کار", intermediate:"متوسط", advanced:"پیشرفته" };
+const LEVEL_TXT_EN = { beginner:"Beginner", intermediate:"Intermediate", advanced:"Advanced" };
 
 function calculateProfile(){
   const h = parseNum($("#fHeight").value), w = parseNum($("#fWeight").value), age = parseNum($("#fAge").value);
@@ -816,17 +1055,17 @@ function calculateProfile(){
   const matchCalories = Math.round(w * 0.125 * 60);
 
   return {
-    name: $("#fName").value.trim() || "ورزشکار",
+    name: $("#fName").value.trim() || tx("ورزشکار","Athlete"),
     age, bmi: bmiOf(h, w), bmiStatus: bmiCat(bmiOf(h, w)).label,
     bmr: Math.round(bmr), tdee, matchCalories, sleep, gymDays, minutes,
-    goal: GOAL_TXT[radioVal("goal")] || "—",
-    level: LEVEL_TXT[radioVal("level")] || "—",
+    goal: (EN() ? GOAL_TXT_EN : GOAL_TXT)[radioVal("goal")] || "—",
+    level: (EN() ? LEVEL_TXT_EN : LEVEL_TXT)[radioVal("level")] || "—",
     injury: radioVal("injury"),
     injuryZone: $("#injuryZone").value, injuryNote: $("#injuryNote").value.trim(),
     injurySurgery: radioVal("injurySurgery"),
     condition: $("#fCondition").value.trim(),
     // vip
-    side: radioVal("vipSide") === "left" ? "سمت چپ (تهاجمی)" : (radioVal("vipSide") === "right" ? "سمت راست (کنترلی)" : null),
+    side: radioVal("vipSide") === "left" ? tx("سمت چپ (تهاجمی)","Left side (attacking)") : (radioVal("vipSide") === "right" ? tx("سمت راست (کنترلی)","Right side (control)") : null),
     sessions: radioVal("vipSessions"),
     painMap: readPainMap("vipPainMap"),
     // padel basic (aionly)
@@ -839,11 +1078,12 @@ function calculateProfile(){
 }
 
 function exRow(e, conservative){
-  const sets = conservative ? e.sets.replace(/۳ ست/, "۲–۳ ست") + " · تکنیک اول" : e.sets;
-  return '<tr><td>' + e.name +
-    (e.tag === "padel" ? '<span class="tag padel">پدل</span>' : "") +
-    (e.tag === "prev" ? '<span class="tag prev">پیشگیری</span>' : "") +
-    '<span class="ex-note">' + e.note + "</span></td>" +
+  let sets = EN() ? e.setsEn : e.sets;
+  if(conservative) sets = sets.replace(/^(۳ ست|3 sets)/, EN() ? "2–3 sets" : "۲–۳ ست") + tx(" · تکنیک اول", " · technique first");
+  return '<tr><td>' + (EN() ? e.nameEn : e.name) +
+    (e.tag === "padel" ? '<span class="tag padel">' + tx("پدل","Padel") + '</span>' : "") +
+    (e.tag === "prev" ? '<span class="tag prev">' + tx("پیشگیری","Prevention") + '</span>' : "") +
+    '<span class="ex-note">' + (EN() ? e.noteEn : e.note) + "</span></td>" +
     '<td class="sr">' + sets + "</td></tr>";
 }
 
@@ -851,27 +1091,28 @@ function flagsHtml(d){
   let h = "";
   if(d.injury === "yes"){
     const surg = d.injurySurgery === "yes";
-    h += '<div class="flag ' + (surg ? "red" : "amber") + '"><span class="ic">' + (surg ? "⛔" : "⚠") + "</span><span><b>سابقه آسیب:</b> " + esc(d.injuryZone || "—") +
+    const zoneTxt = { shoulder:tx("شانه","Shoulder"), elbow:tx("آرنج","Elbow"), wrist:tx("مچ دست","Wrist"), back:tx("کمر و ستون فقرات","Back & spine"), knee:tx("زانو","Knee"), ankle:tx("مچ پا","Ankle"), other:tx("سایر نواحی","Other") }[d.injuryZone] || d.injuryZone || "—";
+    h += '<div class="flag ' + (surg ? "red" : "amber") + '"><span class="ic">' + (surg ? "⛔" : "⚠") + "</span><span><b>" + tx("سابقه آسیب:","Injury history:") + "</b> " + esc(zoneTxt) +
       (d.injuryNote ? " — " + esc(d.injuryNote) : "") +
-      (surg ? ' · <b>سابقه جراحی دارد — در برنامه‌دادن لحاظ شود</b>' : "") + "</span></div>";
+      (surg ? ' · <b>' + tx("سابقه جراحی دارد — در برنامه‌دادن لحاظ شود","Has had surgery — must be factored into programming") + '</b>' : "") + "</span></div>";
   }
   d.painMap.forEach(p => {
     if(p.surgery === "yes"){
-      h += '<div class="flag red"><span class="ic">⛔</span><span><b>جراحی ' + esc(p.zone) + '</b>' +
-        (p.surgNote ? " — " + esc(p.surgNote) : "") + " · درد: " + esc(p.time) + "</span></div>";
+      h += '<div class="flag red"><span class="ic">⛔</span><span><b>' + tx("جراحی ","Surgery: ") + esc(p.zone) + '</b>' +
+        (p.surgNote ? " — " + esc(p.surgNote) : "") + tx(" · درد: "," · Pain: ") + esc(p.time) + "</span></div>";
     }
   });
-  if(d.age < 18) h += '<div class="flag amber"><span class="ic">⚠</span><span>زیر ۱۸ سال — برنامه محافظه‌کارانه و نیاز به نظارت مربی/والدین.</span></div>';
-  if(d.sleep < 6) h += '<div class="flag amber"><span class="ic">⚠</span><span>خواب کمتر از ۶ ساعت — حجم تمرین کاهش یافت.</span></div>';
+  if(d.age < 18) h += '<div class="flag amber"><span class="ic">⚠</span><span>' + tx("زیر ۱۸ سال — برنامه محافظه‌کارانه و نیاز به نظارت مربی/والدین.","Under 18 — conservative program, coach/parent supervision required.") + "</span></div>";
+  if(d.sleep < 6) h += '<div class="flag amber"><span class="ic">⚠</span><span>' + tx("خواب کمتر از ۶ ساعت — حجم تمرین کاهش یافت.","Sleep under 6 hours — training volume reduced.") + "</span></div>";
   return h;
 }
 
 function statsHtml(d, showPadel){
   return '<div class="kv">' +
-    '<div class="item"><span>شاخص BMI</span><b class="c">' + faNum(d.bmi.toFixed(1)) + " (" + d.bmiStatus + ")</b></div>" +
-    '<div class="item"><span>کالری روزانه نگهدارنده (تخمینی)</span><b class="v">' + faNum(d.tdee) + " kcal</b></div>" +
-    (showPadel ? '<div class="item"><span>کالری هر جلسه پدل ۶۰ دقیقه‌ای (تخمینی)</span><b>+' + faNum(d.matchCalories) + " kcal</b></div>" : "") +
-    '<div class="item"><span>برنامه هفتگی</span><b>' + faNum(d.gymDays) + " روز × " + faNum(d.minutes) + " دقیقه</b></div>" +
+    '<div class="item"><span>' + tx("شاخص BMI","BMI") + '</span><b class="c">' + faNum(d.bmi.toFixed(1)) + " (" + d.bmiStatus + ")</b></div>" +
+    '<div class="item"><span>' + tx("کالری روزانه نگهدارنده (تخمینی)","Daily maintenance calories (est.)") + '</span><b class="v">' + faNum(d.tdee) + " kcal</b></div>" +
+    (showPadel ? '<div class="item"><span>' + tx("کالری هر جلسه پدل ۶۰ دقیقه‌ای (تخمینی)","Calories per 60-min padel session (est.)") + '</span><b>+' + faNum(d.matchCalories) + " kcal</b></div>" : "") +
+    '<div class="item"><span>' + tx("برنامه هفتگی","Weekly plan") + '</span><b>' + faNum(d.gymDays) + tx(" روز × "," days × ") + faNum(d.minutes) + tx(" دقیقه"," min") + "</b></div>" +
   "</div>";
 }
 
@@ -884,16 +1125,16 @@ function renderResults(d){
   /* --- AI-only: red-flag block --- */
   if(isAI && (d.rf.chest === "yes" || d.rf.faint === "yes" || d.rf.cond === "yes" || d.rf.doc === "yes")){
     const reasons = [];
-    if(d.rf.chest === "yes") reasons.push("درد/فشار قفسه سینه حین ورزش");
-    if(d.rf.faint === "yes") reasons.push("غش یا سرگیجه بی‌دلیل");
-    if(d.rf.cond === "yes") reasons.push("بیماری کنترل‌نشده");
-    if(d.rf.doc === "yes") reasons.push("ممنوعیت/محدودیت پزشک");
-    $("#resultLead").textContent = "غربالگری ایمنی";
+    if(d.rf.chest === "yes") reasons.push(tx("درد/فشار قفسه سینه حین ورزش","Chest pain/pressure during exercise"));
+    if(d.rf.faint === "yes") reasons.push(tx("غش یا سرگیجه بی‌دلیل","Unexplained fainting or dizziness"));
+    if(d.rf.cond === "yes") reasons.push(tx("بیماری کنترل‌نشده","Uncontrolled medical condition"));
+    if(d.rf.doc === "yes") reasons.push(tx("ممنوعیت/محدودیت پزشک","Doctor's restriction/ban"));
+    $("#resultLead").textContent = tx("غربالگری ایمنی","Safety screening");
     $("#traineeView").innerHTML =
       '<div class="card" style="border-color:rgba(255,0,85,.55)">' +
-      '<h2>⛔ برنامه‌ای صادر نشد</h2>' +
-      '<p>به این موارد پاسخ «بله» دادید: <b>' + reasons.join("، ") + "</b>.</p>" +
-      '<div class="flag red"><span class="ic">🏥</span><span><b>اول به پزشک مراجعه کن — بدون تأیید پزشک برنامه‌ای صادر نمی‌شود.</b></span></div>' +
+      '<h2>⛔ ' + tx("برنامه‌ای صادر نشد","No program was issued") + '</h2>' +
+      '<p>' + tx("به این موارد پاسخ «بله» دادید: ","You answered \"yes\" to: ") + '<b>' + reasons.join(tx("، ",", ")) + "</b>.</p>" +
+      '<div class="flag red"><span class="ic">🏥</span><span><b>' + tx("اول به پزشک مراجعه کن — بدون تأیید پزشک برنامه‌ای صادر نمی‌شود.","See a doctor first — no program is issued without a doctor's clearance.") + "</b></span></div>" +
       "</div>";
     $("#tabsRow").classList.add("hidden");
     $("#coachView").classList.add("hidden");
@@ -904,11 +1145,11 @@ function renderResults(d){
 
   let head = "";
   if(isAI){
-    head += '<div class="paid-banner"><span>💎</span><span>محصول پولی — فقط برنامه هوشمند</span></div>';
-    head += '<span class="ai-label">تولیدشده توسط هوش مصنوعی — بدون بررسی مربی</span>';
-    $("#resultLead").textContent = "این برنامه توسط هوش مصنوعی تولید شده است — بدون بررسی مربی.";
+    head += '<div class="paid-banner"><span>💎</span><span>' + tx("محصول پولی — فقط برنامه هوشمند","Paid product — AI program only") + '</span></div>';
+    head += '<span class="ai-label">' + tx("تولیدشده توسط هوش مصنوعی — بدون بررسی مربی","Generated by AI — no coach review") + '</span>';
+    $("#resultLead").textContent = tx("این برنامه توسط هوش مصنوعی تولید شده است — بدون بررسی مربی.","This program was generated by AI — no coach review.");
   } else {
-    $("#resultLead").textContent = "این برنامه جهت بررسی و تأیید نهایی مربی آماده است.";
+    $("#resultLead").textContent = tx("این برنامه جهت بررسی و تأیید نهایی مربی آماده است.","This program is ready for the coach's final review and approval.");
   }
 
   /* --- program table --- */
@@ -925,44 +1166,44 @@ function renderResults(d){
     if(showPadel) progRows += exRow(EX_DB.rotCable, cons) + exRow(EX_DB.facepull, cons) + exRow(EX_DB.wristArmor, cons);
   }
   if(d.injury === "yes" && d.injuryZone === "knee"){
-    progRows += '<tr><td colspan="2" style="color:var(--amber); font-size:13px">⚠ به‌دلیل سابقه زانو: اسکوات عمیق و لانج سنگین با پرس پا/ددلیفت رومانیایی جایگزین شود.</td></tr>';
+    progRows += '<tr><td colspan="2" style="color:var(--amber); font-size:13px">⚠ ' + tx("به‌دلیل سابقه زانو: اسکوات عمیق و لانج سنگین با پرس پا/ددلیفت رومانیایی جایگزین شود.","Knee history: replace deep squats and heavy lunges with leg press / Romanian deadlift.") + '</td></tr>';
   }
   if(d.injury === "yes" && (d.injuryZone === "shoulder" || d.injuryZone === "elbow")){
-    progRows += '<tr><td colspan="2" style="color:var(--amber); font-size:13px">⚠ به‌دلیل سابقه شانه/آرنج: پرس سرشانه سنگین حذف و فیس‌پول/تقویت مچ در اولویت است.</td></tr>';
+    progRows += '<tr><td colspan="2" style="color:var(--amber); font-size:13px">⚠ ' + tx("به‌دلیل سابقه شانه/آرنج: پرس سرشانه سنگین حذف و فیس‌پول/تقویت مچ در اولویت است.","Shoulder/elbow history: heavy overhead press removed; face pulls / wrist work prioritized.") + '</td></tr>';
   }
 
   let conservativeNote = "";
   if(cons){
-    conservativeNote = '<div class="flag volt"><span class="ic">🛡</span><span><b>پروتکل احتیاطی (چون مربی در حلقه نیست):</b> ۲ هفته اول با ۵۰–۶۰٪ توان و تمرکز کامل بر تکنیک؛ هر هفته حداکثر ۱۰٪ اضافه شود؛ بدون وزنه‌های رکوردی.</span></div>';
+    conservativeNote = '<div class="flag volt"><span class="ic">🛡</span><span><b>' + tx("پروتکل احتیاطی (چون مربی در حلقه نیست):","Caution protocol (no coach in the loop):") + '</b> ' + tx("۲ هفته اول با ۵۰–۶۰٪ توان و تمرکز کامل بر تکنیک؛ هر هفته حداکثر ۱۰٪ اضافه شود؛ بدون وزنه‌های رکوردی.","First 2 weeks at 50–60% effort with full focus on technique; add at most 10% per week; no max-effort lifts.") + "</span></div>";
   }
 
   $("#traineeView").innerHTML = head +
     '<div class="card"><h2>' + esc(d.name) + '</h2>' +
-    '<p class="step-sub">هدف: <b>' + esc(d.goal) + '</b> · سطح: <b>' + esc(d.level) + '</b>' +
-    (d.side ? ' · پست: <b>' + esc(d.side) + '</b>' : "") +
-    (d.sessions ? ' · <b>' + faNum(d.sessions) + ' جلسه پدل در هفته</b> (هر جلسه ۶۰ دقیقه ثابت)' : "") +
-    (d.pbPlay === "yes" ? ' · پدل: <b>' + faNum(d.pbSessions) + ' جلسه در هفته</b>' : "") + "</p>" +
+    '<p class="step-sub">' + tx("هدف: ","Goal: ") + '<b>' + esc(d.goal) + '</b> · ' + tx("سطح: ","Level: ") + '<b>' + esc(d.level) + '</b>' +
+    (d.side ? ' · ' + tx("پست: ","Position: ") + '<b>' + esc(d.side) + '</b>' : "") +
+    (d.sessions ? ' · <b>' + faNum(d.sessions) + tx(" جلسه پدل در هفته"," padel sessions per week") + '</b>' + tx(" (هر جلسه ۶۰ دقیقه ثابت)"," (each session fixed at 60 min)") : "") +
+    (d.pbPlay === "yes" ? ' · ' + tx("پدل: ","Padel: ") + '<b>' + faNum(d.pbSessions) + tx(" جلسه در هفته"," sessions per week") + '</b>' : "") + "</p>" +
     statsHtml(d, showPadel) + "</div>" +
     flagsHtml(d) + conservativeNote +
-    '<div class="card"><h3>برنامه تمرینی ' + (isPadel ? "(تکمیلی پدل + موبیلیتی)" : "(باشگاه)") + '</h3>' +
-    '<div class="session"><div class="session-head"><b>جلسات هفتگی</b><span>' + faNum(d.gymDays) + " روز × " + faNum(d.minutes) + ' دقیقه</span></div>' +
+    '<div class="card"><h3>' + tx("برنامه تمرینی ","Training program ") + (isPadel ? tx("(تکمیلی پدل + موبیلیتی)","(padel supplementary + mobility)") : tx("(باشگاه)","(gym)")) + '</h3>' +
+    '<div class="session"><div class="session-head"><b>' + tx("جلسات هفتگی","Weekly sessions") + '</b><span>' + faNum(d.gymDays) + tx(" روز × "," days × ") + faNum(d.minutes) + tx(" دقیقه"," min") + '</span></div>' +
     '<table class="ex">' + progRows + "</table></div>" +
-    '<p class="step-sub">کالری‌ها تخمینی‌اند (Mifflin-St Jeor)؛ مربی اعداد نهایی را تنظیم می‌کند.</p></div>' +
+    '<p class="step-sub">' + tx("کالری‌ها تخمینی‌اند (Mifflin-St Jeor)؛ مربی اعداد نهایی را تنظیم می‌کند.","Calories are estimates (Mifflin-St Jeor); the coach sets the final numbers.") + '</p></div>' +
     (isAI
-      ? '<div class="flag red"><span class="ic">⚠</span><span><b>سلب مسئولیت:</b> این برنامه توسط هوش مصنوعی و بدون بررسی مربی تولید شده است. در صورت درد، سرگیجه یا تنگی نفس، تمرین را فوراً متوقف و به پزشک مراجعه کنید.</span></div>'
+      ? '<div class="flag red"><span class="ic">⚠</span><span><b>' + tx("سلب مسئولیت:","Disclaimer:") + '</b> ' + tx("این برنامه توسط هوش مصنوعی و بدون بررسی مربی تولید شده است. در صورت درد، سرگیجه یا تنگی نفس، تمرین را فوراً متوقف و به پزشک مراجعه کنید.","This program was generated by AI without coach review. If you feel pain, dizziness or shortness of breath, stop immediately and see a doctor.") + "</span></div>"
       : "");
 
   /* --- coach view (hidden for AI-only) --- */
   if(!isAI){
     $("#coachView").innerHTML =
       '<div class="card" style="border-color:rgba(0,240,255,.35)">' +
-      '<h2>گزارش مربی</h2><p class="step-sub">این برنامه جهت بررسی و تأیید نهایی شما آماده است.</p>' +
+      '<h2>' + tx("گزارش مربی","Coach report") + '</h2><p class="step-sub">' + tx("این برنامه جهت بررسی و تأیید نهایی شما آماده است.","This program is ready for your final review and approval.") + '</p>' +
       flagsHtml(d) +
-      "<h3>نقشه درد</h3>" +
+      "<h3>" + tx("نقشه درد","Pain map") + "</h3>" +
       (d.painMap.length
-        ? '<ul class="tips">' + d.painMap.map(p => "<li><b>" + esc(p.zone) + "</b> · " + esc(p.time) + " · جراحی: <b>" + (p.surgery === "yes" ? "بله" + (p.surgNote ? " (" + esc(p.surgNote) + ")" : "") : "خیر") + "</b></li>").join("") + "</ul>"
-        : '<p style="color:var(--muted); font-size:13.5px">دردی علامت زده نشده است.</p>') +
-      (d.condition ? '<h3 style="margin-top:14px">بیماری/دارو</h3><p style="font-size:14px">' + esc(d.condition) + "</p>" : "") +
+        ? '<ul class="tips">' + d.painMap.map(p => "<li><b>" + esc(p.zone) + "</b> · " + esc(p.time) + " · " + tx("جراحی: ","Surgery: ") + "<b>" + (p.surgery === "yes" ? tx("بله","Yes") + (p.surgNote ? " (" + esc(p.surgNote) + ")" : "") : tx("خیر","No")) + "</b></li>").join("") + "</ul>"
+        : '<p style="color:var(--muted); font-size:13.5px">' + tx("دردی علامت زده نشده است.","No pain was marked.") + "</p>") +
+      (d.condition ? '<h3 style="margin-top:14px">' + tx("بیماری/دارو","Condition/medication") + '</h3><p style="font-size:14px">' + esc(d.condition) + "</p>" : "") +
       "</div>";
   } else {
     $("#coachView").innerHTML = "";
@@ -998,7 +1239,7 @@ $("#restartBtn").addEventListener("click", () => {
 });
 $("#downloadBtn").addEventListener("click", () => {
   const content = $("#traineeView").innerHTML + $("#coachView").innerHTML;
-  const html = '<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><title>گزارش تمرینی</title><style>body{font-family:Tahoma,sans-serif;background:#07090E;color:#fff;padding:20px;direction:rtl}.card{background:#0F141C;border:1px solid #333;padding:16px;border-radius:12px;margin-bottom:12px}.session{border:1px solid #333;border-radius:10px;margin-top:10px}table{width:100%;border-collapse:collapse}td,th{padding:8px;border-bottom:1px solid #222}</style></head><body>' + content + "</body></html>";
+  const html = '<!doctype html><html lang="' + LANG + '" dir="' + (EN() ? "ltr" : "rtl") + '"><head><meta charset="utf-8"><title>' + tx("گزارش تمرینی","Training report") + '</title><style>body{font-family:Tahoma,sans-serif;background:#07090E;color:#fff;padding:20px;direction:' + (EN() ? "ltr" : "rtl") + '}.card{background:#0F141C;border:1px solid #333;padding:16px;border-radius:12px;margin-bottom:12px}.session{border:1px solid #333;border-radius:10px;margin-top:10px}table{width:100%;border-collapse:collapse}td,th{padding:8px;border-bottom:1px solid #222}</style></head><body>' + content + "</body></html>";
   const blob = new Blob([html], { type:"text/html;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);

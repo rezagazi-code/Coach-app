@@ -2,7 +2,7 @@
  * مربی من — lightweight bilingual dictionary (FA default, EN toggle).
  * No external library: bundle stays tiny, every string lives in two dicts.
  */
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 export type Lang = 'fa' | 'en';
 
@@ -342,8 +342,37 @@ interface LangCtx {
 
 const Ctx = createContext<LangCtx | null>(null);
 
+/**
+ * Persisted language — the SINGLE source the standalone questionnaire
+ * (public/questionnaire.html, same origin) also reads: localStorage key
+ * below, with a `?lang=` query / postMessage fallback for contexts where
+ * the iframe cannot share storage (e.g. file://). Keep the key in sync
+ * with LANG_KEY in questionnaire.html.
+ */
+export const LANG_STORAGE_KEY = 'km.lang.v1';
+
+function initialLang(): Lang {
+  try {
+    return localStorage.getItem(LANG_STORAGE_KEY) === 'en' ? 'en' : 'fa';
+  } catch {
+    return 'fa';
+  }
+}
+
 export function LangProvider({ children }: { children: ReactNode }) {
-  const [lang, setLang] = useState<Lang>('fa');
+  const [lang, setLangState] = useState<Lang>(initialLang);
+  const setLang = (l: Lang) => {
+    setLangState(l);
+    try {
+      localStorage.setItem(LANG_STORAGE_KEY, l);
+    } catch {
+      /* storage unavailable — language still applies this session */
+    }
+  };
+  useEffect(() => {
+    document.documentElement.lang = lang;
+    document.documentElement.dir = lang === 'fa' ? 'rtl' : 'ltr';
+  }, [lang]);
   const value = useMemo<LangCtx>(() => {
     const dict = lang === 'fa' ? fa : en;
     const t = (key: string) => dict[key] ?? key;
