@@ -80,8 +80,19 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      # Vite inlines VITE_* at build time; .env is gitignored, so CI must
+      # be given the public Supabase config via repo secrets — without it
+      # the APK ships 'not configured' (v0.1.0 bug, caught on-device).
       - name: Build web app
-        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_ANON_KEY" ]; then
+            echo "::error::VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY secrets are missing — the app would ship unconfigured."
+            exit 1
+          fi
+          npm run build
 
       - name: Sync Capacitor (android)
         run: npx cap sync android
