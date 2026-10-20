@@ -40,8 +40,11 @@ export const DEFAULT_COACH_SLUG = 'reza';
 // Environment — fail loud in dev, never silently ship a wrong endpoint.
 // --------------------------------------------------------------------------
 
-const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+// Empty strings count as UNSET: a host/CI that defines the vars but leaves
+// them blank must land in demo mode, not crash createClient('') with
+// "supabaseUrl is required" and white-screen the app before the gate.
+const url = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || undefined;
+const anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || undefined;
 
 export const isSupabaseConfigured = Boolean(url && anonKey);
 
