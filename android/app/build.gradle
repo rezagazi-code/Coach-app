@@ -1,5 +1,26 @@
 apply plugin: 'com.android.application'
 
+// Release signing — secrets come ONLY from environment variables /
+// Gradle properties supplied OUTSIDE this repo. Never commit passwords
+// or the keystore itself.
+//   COACH_KEYSTORE_FILE       path to coach-release.jks
+//                             (default below: ~/workspace/secure/coach-release.jks
+//                              relative to this repo on Reza's machine)
+//   COACH_KEYSTORE_PASSWORD   keystore password (from coach-keystore.env / CI secret)
+//   COACH_KEY_PASSWORD        key password      (from coach-keystore.env / CI secret)
+//   COACH_KEY_ALIAS           optional, defaults to "coachapp"
+def coachKeystoreFile = System.getenv("COACH_KEYSTORE_FILE") ?:
+        project.findProperty("COACH_KEYSTORE_FILE") ?:
+        "$rootDir/../../secure/coach-release.jks"
+def coachKeystorePassword = System.getenv("COACH_KEYSTORE_PASSWORD") ?:
+        project.findProperty("COACH_KEYSTORE_PASSWORD")
+def coachKeyPassword = System.getenv("COACH_KEY_PASSWORD") ?:
+        project.findProperty("COACH_KEY_PASSWORD")
+def coachKeyAlias = System.getenv("COACH_KEY_ALIAS") ?:
+        project.findProperty("COACH_KEY_ALIAS") ?: "coachapp"
+def coachSigningReady = coachKeystorePassword && coachKeyPassword &&
+        file(coachKeystoreFile).exists()
+
 android {
     namespace = "ir.coachstudio.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,10 +37,26 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (coachSigningReady) {
+                storeFile file(coachKeystoreFile)
+                storePassword coachKeystorePassword
+                keyAlias coachKeyAlias
+                keyPassword coachKeyPassword
+                enableV1Signing false
+                enableV2Signing true
+                enableV3Signing true
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (coachSigningReady) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

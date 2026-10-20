@@ -1,0 +1,121 @@
+# ============================================================================
+# «مربی من» (My Coach) — Release APK build
+#
+# ⚠️ REQUIRED TONIGHT — add these GitHub repo secrets BEFORE running:
+#   Settings → Secrets and variables → Actions → New repository secret
+#     COACH_KEYSTORE_BASE64    base64 of ~/workspace/secure/coach-release.jks
+#                              (locally: base64 -w0 ~/workspace/secure/coach-release.jks)
+#     COACH_KEYSTORE_PASSWORD  value of COACH_KEYSTORE_PASSWORD in
+#                              ~/workspace/secure/coach-keystore.env
+#     COACH_KEY_PASSWORD       value of COACH_KEY_PASSWORD in the same file
+#     COACH_KEY_ALIAS          optional — defaults to "coachapp" if unset
+#   Without them the signing step fails closed (no unsigned APK is uploaded
+#   as a "release").
+#
+# ⚠️ PUSH CAVEAT: the project's API-push helper EXCLUDES .github/ files.
+#   This file will NOT reach GitHub through that helper — upload it via the
+#   GitHub web UI (Add file → Upload files) or a normal `git push` that
+#   includes .github/.
+#
+# Expected result: signed APK, package ir.coachstudio.app, signature
+# schemes v2 + v3, cert SHA-256 starting 6D:D4:AF:E4 and ending D4:1C.
+# ============================================================================
+name: Build Release APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "public/**"
+      - "android/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "capacitor.config.ts"
+      - ".github/workflows/build-apk.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Sync Capacitor (android)
+        run: npx cap sync android
+
+      - name: Decode release keystore (from secret)
+        env:
+          COACH_KEYSTORE_BASE64: ${{ secrets.COACH_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$COACH_KEYSTORE_BASE64" ]; then
+            echo "::error::COACH_KEYSTORE_BASE64 secret is missing — see header of this file."
+            exit 1
+          fi
+          echo "$COACH_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/coach-release.jks"
+          ls -l "$RUNNER_TEMP/coach-release.jks"
+
+      - name: Build signed release APK
+        env:
+          COACH_KEYSTORE_FILE: ${{ runner.temp }}/coach-release.jks
+          COACH_KEYSTORE_PASSWORD: ${{ secrets.COACH_KEYSTORE_PASSWORD }}
+          COACH_KEY_PASSWORD: ${{ secrets.COACH_KEY_PASSWORD }}
+          COACH_KEY_ALIAS: ${{ secrets.COACH_KEY_ALIAS }}
+        run: |
+          if [ -z "$COACH_KEYSTORE_PASSWORD" ] || [ -z "$COACH_KEY_PASSWORD" ]; then
+            echo "::error::Keystore password secrets are missing — see header of this file."
+            exit 1
+          fi
+          # Alias defaults to coachapp in android/app/build.gradle when unset/empty.
+          if [ -z "$COACH_KEY_ALIAS" ]; then unset COACH_KEY_ALIAS; fi
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+      - name: Verify APK (package + v2/v3 signatures)
+        run: |
+          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -n1)
+          echo "APK: $APK"
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort | tail -n1)
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt | sort | tail -n1)
+          "$AAPT" dump badging "$APK" | head -n 3
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          # Fail if v2 or v3 is missing.
+          "$APKSIGNER" verify --verbose "$APK" | grep -q "v2 scheme): true"
+          "$APKSIGNER" verify --verbose "$APK" | grep -q "v3 scheme): true"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: morabi-man-release-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
