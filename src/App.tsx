@@ -1,5 +1,5 @@
 /**
- * کمک مربی (Komak-e Morabi) — coach daily-app shell.
+ * مربی من (My Coach) — coach daily-app shell.
  *
  * 5 bottom tabs: پرسش‌نامه (iframe of the finalized standalone
  * questionnaire.html), تمرین (live session logger), تغذیه (kcal + macro

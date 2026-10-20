@@ -1,5 +1,5 @@
 /**
- * Supabase client + typed data layer for کمک مربی.
+ * Supabase client + typed data layer for مربی من.
  *
  * ENV ONLY — keys come from VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY,
  * never hardcoded. Until Reza creates the Supabase project, reads throw

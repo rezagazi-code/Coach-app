@@ -1,5 +1,5 @@
 /**
- * کمک مربی — lightweight bilingual dictionary (FA default, EN toggle).
+ * مربی من — lightweight bilingual dictionary (FA default, EN toggle).
  * No external library: bundle stays tiny, every string lives in two dicts.
  */
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
@@ -9,7 +9,7 @@ export type Lang = 'fa' | 'en';
 type Dict = Record<string, string>;
 
 const fa: Dict = {
-  'app.name': 'کمک مربی',
+  'app.name': 'مربی من',
   'tab.questionnaire': 'پرسش‌نامه',
   'tab.workout': 'تمرین',
   'tab.nutrition': 'تغذیه',
@@ -75,7 +75,7 @@ const fa: Dict = {
 };
 
 const en: Dict = {
-  'app.name': 'Komak-e Morabi',
+  'app.name': 'My Coach',
   'tab.questionnaire': 'Form',
   'tab.workout': 'Workout',
   'tab.nutrition': 'Nutrition',
