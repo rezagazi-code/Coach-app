@@ -185,6 +185,7 @@ function demoAthleteCards(lang: Lang): AthleteCard[] {
     id,
     athlete_id: athleteId,
     coach_id: null,
+    client_uuid: null,
     status,
     created_by: 'ai',
     track,

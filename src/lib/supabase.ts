@@ -13,6 +13,8 @@
  *   v4 supabase-xp-scoring.sql    — meal_logs
  *   v5 supabase-training-log.sql  — workout_sessions, logged_sets,
  *                                   checklist_completions, messages
+ *   v7 supabase-questionnaire-submit.sql — client_uuid on responses +
+ *                                   programs; athlete self-submit policies
  *
  * Architecture: per-coach data isolation (coach_id tenant, per-coach RLS).
  * Phase 1 = single-coach (Reza). coach_id columns are uuid — never store
@@ -118,7 +120,7 @@ export interface Athlete {
   created_at: string;
 }
 
-/** v1 questionnaire_responses + v2 coach_id. answers/flags are raw jsonb. */
+/** v1 questionnaire_responses + v2 coach_id + v7 client_uuid. answers/flags are raw jsonb. */
 export interface QuestionnaireResponse {
   id: string;
   athlete_id: string;
@@ -126,14 +128,16 @@ export interface QuestionnaireResponse {
   track: Track;
   answers: Record<string, unknown>;
   flags: Record<string, unknown>; // bmi, bmi_cat, age_band, injuries[], surgeries[], goal, sleep_hours, days_per_week
+  client_uuid: string | null; // v7: submission idempotency key (UNIQUE)
   created_at: string;
 }
 
-/** v1 programs + v2 coach_id. */
+/** v1 programs + v2 coach_id + v7 client_uuid. */
 export interface Program {
   id: string;
   athlete_id: string;
   coach_id: string | null;
+  client_uuid: string | null; // v7: derived from the submission's client_uuid (UNIQUE)
   status: ProgramStatus;
   created_by: 'ai' | 'coach';
   track: Track;
@@ -327,15 +331,27 @@ export async function listAthletes(): Promise<Athlete[]> {
 
 export async function saveQuestionnaireResponse(input: {
   athlete_id: string;
+  coach_id?: string | null;
   track: Track;
   answers: Record<string, unknown>;
   flags?: Record<string, unknown>;
+  client_uuid?: string | null;
 }): Promise<QuestionnaireResponse> {
-  const { data, error } = await requireClient()
-    .from('questionnaire_responses')
-    .insert({ ...input, flags: input.flags ?? {} })
-    .select()
-    .single();
+  const row = {
+    athlete_id: input.athlete_id,
+    coach_id: input.coach_id ?? null,
+    track: input.track,
+    answers: input.answers,
+    flags: input.flags ?? {},
+    client_uuid: input.client_uuid ?? null,
+  };
+  const client = requireClient();
+  // With a client_uuid the write is an upsert on the v7 UNIQUE index, so a
+  // resubmit (double-tap, retry, offline re-sync) lands on the SAME row.
+  const query = input.client_uuid
+    ? client.from('questionnaire_responses').upsert(row, { onConflict: 'client_uuid' })
+    : client.from('questionnaire_responses').insert(row);
+  const { data, error } = await query.select().single();
   if (error) throw error;
   return data as QuestionnaireResponse;
 }
@@ -693,6 +709,175 @@ export async function updateProgramCoachNotes(programId: string, coachNotes: str
 }
 
 // --------------------------------------------------------------------------
+// QUESTIONNAIRE SUBMIT (§18.1) — the end-to-end persist for «ساخت برنامه».
+//
+// The standalone questionnaire page (public/questionnaire.html) mints a
+// submission client_uuid when the questionnaire STARTS and, on submit,
+// stores the payload under PENDING_SUBMISSION_KEY (same-origin localStorage)
+// + posts it to the parent frame. Per §18.1 step 3 nothing reaches the DB
+// before signup; afterwards persistPendingSubmission() flushes it:
+//
+//   questionnaire_responses  (upsert on client_uuid — v7 UNIQUE)
+//   programs                 (AI draft; upsert on a client_uuid derived
+//                             deterministically from the submission's, so
+//                             retries collapse onto the same program)
+//     status by track: gym/vip/padel → 'in_review' (awaits the coach),
+//                      aionly → 'active' (no coach review, honest AI label)
+//   review_queue             (coach tracks only; ignoreDuplicates on the
+//                             program_id PK — a retry never resurrects or
+//                             overwrites a decided row)
+//
+// An aionly submission blocked by the red-flag screening (any safety
+// answer = yes) persists ONLY the response: no program is issued, exactly
+// as the page's results screen states.
+// --------------------------------------------------------------------------
+
+/** localStorage key shared with public/questionnaire.html (same origin). */
+export const PENDING_SUBMISSION_KEY = 'km.pendingSubmission.v1';
+
+export interface QuestionnaireSubmission {
+  /** Minted at questionnaire start; the idempotency key for the whole submit. */
+  clientUuid: string;
+  track: Track;
+  answers: Record<string, unknown>;
+  /** Coach-card snapshot: bmi, bmi_cat, age_band, injuries[], surgeries[], goal, sleep_hours, days_per_week. */
+  flags: Record<string, unknown>;
+  program: { goal: string; split: string; days_per_week: number; ai_summary: string };
+  /** aionly + any red-flag answer = yes → screening blocked any program. */
+  redFlagBlocked: boolean;
+  submittedAt: string;
+}
+
+/** The program's client_uuid is DERIVED from the submission's: one
+ *  submission ⇒ exactly one program, however often the submit re-runs. */
+export function programClientUuid(submissionUuid: string): string {
+  return deterministicUuid(`${submissionUuid}:program`);
+}
+
+export function storePendingSubmission(payload: QuestionnaireSubmission): void {
+  try {
+    localStorage.setItem(PENDING_SUBMISSION_KEY, JSON.stringify(payload));
+  } catch {
+    /* storage unavailable — the in-session postMessage path still delivers */
+  }
+}
+
+export function readPendingSubmission(): QuestionnaireSubmission | null {
+  try {
+    const raw = localStorage.getItem(PENDING_SUBMISSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as QuestionnaireSubmission;
+    return parsed && typeof parsed.clientUuid === 'string' && parsed.track ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearPendingSubmission(): void {
+  try {
+    localStorage.removeItem(PENDING_SUBMISSION_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Direct (online) submit. Every write is an idempotent upsert, so calling
+ * this twice for the same payload is a no-op the second time. Throws on
+ * server/RLS errors — callers that can wait use persistPendingSubmission,
+ * which falls back to the offline queue.
+ */
+export async function submitQuestionnaire(input: {
+  athlete_id: string;
+  coach_id: string;
+  payload: QuestionnaireSubmission;
+}): Promise<{ response: QuestionnaireResponse; program: Program | null; blocked: boolean }> {
+  const { payload } = input;
+  const response = await saveQuestionnaireResponse({
+    athlete_id: input.athlete_id,
+    coach_id: input.coach_id,
+    track: payload.track,
+    answers: payload.answers,
+    flags: payload.flags,
+    client_uuid: payload.clientUuid,
+  });
+  if (payload.redFlagBlocked) {
+    // Safety screening said "see a doctor first" — the response documents
+    // the screening; NO program and NO queue row are created.
+    return { response, program: null, blocked: true };
+  }
+  const client = requireClient();
+  const { data, error } = await client
+    .from('programs')
+    .upsert(
+      {
+        athlete_id: input.athlete_id,
+        coach_id: input.coach_id,
+        client_uuid: programClientUuid(payload.clientUuid),
+        status: payload.track === 'aionly' ? 'active' : 'in_review',
+        created_by: 'ai',
+        track: payload.track,
+        goal: payload.program.goal,
+        split: payload.program.split,
+        days_per_week: payload.program.days_per_week,
+        ai_summary: payload.program.ai_summary,
+        coach_notes: '',
+        approved_at: null,
+      },
+      { onConflict: 'client_uuid' }
+    )
+    .select()
+    .single();
+  if (error) throw error;
+  const program = data as Program;
+  if (payload.track !== 'aionly') {
+    const { error: queueError } = await client
+      .from('review_queue')
+      .upsert(
+        { program_id: program.id, flags_snapshot: payload.flags },
+        { onConflict: 'program_id', ignoreDuplicates: true }
+      );
+    if (queueError) throw queueError;
+  }
+  return { response, program, blocked: false };
+}
+
+/** Queue entries still holding (part of) this submission, if any. */
+export function submissionQueueDepth(payload: QuestionnaireSubmission): number {
+  const programUuid = programClientUuid(payload.clientUuid);
+  return readQueue().filter(
+    (e) =>
+      e.data.client_uuid === payload.clientUuid ||
+      e.data.client_uuid === programUuid ||
+      e.data.program_client_uuid === programUuid
+  ).length;
+}
+
+/**
+ * Flush the stored questionnaire submission for a now-identified athlete.
+ * Queue-first (the same sync engine as workout logging): the entries are
+ * enqueued with their idempotency keys and flushed; only when nothing of
+ * this submission remains queued is the stored payload cleared. Safe to
+ * call repeatedly — a second call finds no payload (or re-upserts the
+ * same rows). Returns 'none' | 'stored' (no backend) | 'synced' | 'queued'.
+ */
+export async function persistPendingSubmission(input: {
+  athleteId: string;
+  coachId: string;
+}): Promise<'none' | 'stored' | 'synced' | 'queued'> {
+  const payload = readPendingSubmission();
+  if (!payload) return 'none';
+  if (!isSupabaseConfigured) return 'stored';
+  enqueueSubmission(payload, input.athleteId, input.coachId);
+  await flushQueue();
+  if (submissionQueueDepth(payload) === 0) {
+    clearPendingSubmission();
+    return 'synced';
+  }
+  return 'queued';
+}
+
+// --------------------------------------------------------------------------
 // OFFLINE QUEUE — localStorage-backed write queue with sync-on-reconnect.
 //
 // Idempotency (no duplicate submits, ever):
@@ -703,8 +888,13 @@ export async function updateProgramCoachNotes(programId: string, coachNotes: str
 //    has no client_uuid column; meta jsonb carries it).
 //  - messages: no natural unique key in the schema — inserted once and
 //    removed from the queue only after the server confirms.
+//  - questionnaire_responses / programs: upsert on UNIQUE client_uuid (v7);
+//    the program's uuid is derived deterministically from the submission's.
+//  - review_queue: PK is program_id — upserted with ignoreDuplicates once
+//    its program has synced (a retry never touches a decided row).
 // Ordering: a logged_set is flushed only after its workout_session has
-// left the queue (FK safety). Entries die after 25 failed attempts.
+// left the queue, and a review_queue entry only after its program (FK
+// safety). Entries die after 25 failed attempts.
 // --------------------------------------------------------------------------
 
 export type QueueTable =
@@ -713,7 +903,10 @@ export type QueueTable =
   | 'meal_logs'
   | 'checklist_completions'
   | 'xp_events'
-  | 'messages';
+  | 'messages'
+  | 'questionnaire_responses'
+  | 'programs'
+  | 'review_queue';
 
 export interface QueueEntry {
   id: string;
@@ -734,6 +927,9 @@ const ATHLETE_REQUIRED: Partial<Record<QueueTable, boolean>> = {
   checklist_completions: true,
   xp_events: true,
   messages: true,
+  questionnaire_responses: true,
+  programs: true,
+  review_queue: true,
 };
 
 /** Deterministic UUID (v5-shaped) derived from a seed string. For writes
@@ -935,6 +1131,50 @@ export function enqueueMessage(input: {
   enqueueWrite('messages', { coach_id: null, ...input });
 }
 
+/**
+ * Queue a full questionnaire submission (response → program → review row)
+ * for the offline sync engine. All three entries carry the submission's
+ * idempotency keys; the review entry references its program by
+ * program_client_uuid and is flushed only after the program has synced
+ * (same FK-ordering discipline as logged_sets after their session).
+ */
+export function enqueueSubmission(
+  payload: QuestionnaireSubmission,
+  athleteId: string | null,
+  coachId: string | null
+): void {
+  enqueueWrite('questionnaire_responses', {
+    athlete_id: athleteId,
+    coach_id: coachId,
+    track: payload.track,
+    answers: payload.answers,
+    flags: payload.flags,
+    client_uuid: payload.clientUuid,
+  });
+  if (payload.redFlagBlocked) return; // screening blocked: response only
+  const programUuid = programClientUuid(payload.clientUuid);
+  enqueueWrite('programs', {
+    athlete_id: athleteId,
+    coach_id: coachId,
+    client_uuid: programUuid,
+    status: payload.track === 'aionly' ? 'active' : 'in_review',
+    created_by: 'ai',
+    track: payload.track,
+    goal: payload.program.goal,
+    split: payload.program.split,
+    days_per_week: payload.program.days_per_week,
+    ai_summary: payload.program.ai_summary,
+    coach_notes: '',
+    approved_at: null,
+  });
+  if (payload.track !== 'aionly') {
+    enqueueWrite('review_queue', {
+      program_client_uuid: programUuid,
+      flags_snapshot: payload.flags,
+    });
+  }
+}
+
 async function pushEntry(client: SupabaseClient, entry: QueueEntry): Promise<void> {
   const d = entry.data;
   switch (entry.table) {
@@ -984,6 +1224,37 @@ async function pushEntry(client: SupabaseClient, entry: QueueEntry): Promise<voi
       if (error) throw error;
       return;
     }
+    case 'questionnaire_responses': {
+      const { error } = await client
+        .from('questionnaire_responses')
+        .upsert(d, { onConflict: 'client_uuid' });
+      if (error) throw error;
+      return;
+    }
+    case 'programs': {
+      const { error } = await client.from('programs').upsert(d, { onConflict: 'client_uuid' });
+      if (error) throw error;
+      return;
+    }
+    case 'review_queue': {
+      // d.program_client_uuid is an internal queue key, NOT a column: the
+      // program_id FK is resolved from the synced program row at push time.
+      const programUuid = typeof d.program_client_uuid === 'string' ? d.program_client_uuid : null;
+      if (!programUuid) throw new Error('review_queue entry missing program_client_uuid');
+      const { data, error } = await client
+        .from('programs')
+        .select('id')
+        .eq('client_uuid', programUuid)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error('program not synced yet');
+      const { error: insertError } = await client.from('review_queue').upsert(
+        { program_id: (data as { id: string }).id, flags_snapshot: d.flags_snapshot ?? {} },
+        { onConflict: 'program_id', ignoreDuplicates: true }
+      );
+      if (insertError) throw insertError;
+      return;
+    }
   }
 }
 
@@ -1016,21 +1287,31 @@ export async function flushQueue(): Promise<{ flushed: number; pending: number }
     const pendingSessionIds = new Set(
       snapshot.filter((e) => e.table === 'workout_sessions').map((e) => String(e.data.id))
     );
+    // review_queue entries wait for their program (keyed by client_uuid):
+    // the set shrinks as program entries flush, so FIFO order holds.
+    const pendingProgramUuids = new Set(
+      snapshot.filter((e) => e.table === 'programs').map((e) => String(e.data.client_uuid))
+    );
     const keepById = new Map<string, QueueEntry>(); // snapshot entries that stay queued
     const pushedIds = new Set<string>();
     let flushed = 0;
     for (const entry of snapshot) {
       const needsAthlete = ATHLETE_REQUIRED[entry.table] === true;
+      // Only entries that CARRY an athlete_id can be blocked by a missing
+      // one (review_queue entries reference their program instead).
+      const missingAthlete = needsAthlete && 'athlete_id' in entry.data && !entry.data.athlete_id;
       // logged_sets wait for their session: pendingSessionIds shrinks as
       // sessions flush, so FIFO order (session queued before its sets) holds.
       const sessionPending =
         entry.table === 'logged_sets' && pendingSessionIds.has(String(entry.data.session_id));
-      if (!entry.data.athlete_id && needsAthlete) {
+      const programPending =
+        entry.table === 'review_queue' && pendingProgramUuids.has(String(entry.data.program_client_uuid));
+      if (missingAthlete) {
         keepById.set(entry.id, entry); // no identity yet — wait for login
         continue;
       }
-      if (sessionPending) {
-        keepById.set(entry.id, entry); // session not synced yet — FK safety
+      if (sessionPending || programPending) {
+        keepById.set(entry.id, entry); // parent row not synced yet — FK safety
         continue;
       }
       try {
@@ -1038,6 +1319,7 @@ export async function flushQueue(): Promise<{ flushed: number; pending: number }
         pushedIds.add(entry.id);
         flushed++;
         if (entry.table === 'workout_sessions') pendingSessionIds.delete(String(entry.data.id));
+        if (entry.table === 'programs') pendingProgramUuids.delete(String(entry.data.client_uuid));
       } catch {
         entry.attempts++;
         if (entry.attempts < QUEUE_MAX_ATTEMPTS) keepById.set(entry.id, entry);
