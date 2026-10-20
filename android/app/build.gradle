@@ -21,6 +21,29 @@ def coachKeyAlias = System.getenv("COACH_KEY_ALIAS") ?:
 def coachSigningReady = coachKeystorePassword && coachKeyPassword &&
         file(coachKeystoreFile).exists()
 
+// Version SINGLE SOURCE OF TRUTH (PadelPro lesson: build.gradle constants
+// and app-side constants drifted apart and caused a false perpetual
+// update nag + a wrong user-visible version line):
+//   versionName ← package.json "version" (repo root) — the ONLY place a
+//                 human ever edits the version name.
+//   versionCode ← CI passes -PappVersionCode (monotonic, 100 + run number);
+//                 local default 1. Never hand-edit a second copy.
+def coachPkg = new groovy.json.JsonSlurper().parseText(file("$rootDir/../package.json").text)
+def coachVersionName = coachPkg.version
+def coachVersionCode = (project.findProperty("appVersionCode") ?: "1").toString().toInteger()
+
+// Fail CLOSED (PadelPro lesson): a release task without signing config
+// must never silently emit an unsigned app-release-unsigned.apk.
+gradle.taskGraph.whenReady { graph ->
+    def wantsRelease = graph.allTasks.any { t -> t.name.toLowerCase().contains('release') }
+    if (wantsRelease && !coachSigningReady) {
+        throw new GradleException(
+            "Release build requested but coach signing is not configured " +
+            "(COACH_KEYSTORE_FILE / COACH_KEYSTORE_PASSWORD / COACH_KEY_PASSWORD). " +
+            "Refusing to produce an unsigned release APK.")
+    }
+}
+
 android {
     namespace = "ir.coachstudio.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -28,8 +51,8 @@ android {
         applicationId "ir.coachstudio.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode coachVersionCode
+        versionName coachVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
