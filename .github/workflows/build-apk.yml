@@ -34,6 +34,9 @@ on:
       - "package.json"
       - "package-lock.json"
       - "capacitor.config.ts"
+      - "vite.config.ts"
+      - "tsconfig.json"
+      - "tsconfig.node.json"
       - ".github/workflows/build-apk.yml"
 
 permissions:
@@ -99,23 +102,38 @@ jobs:
           if [ -z "$COACH_KEY_ALIAS" ]; then unset COACH_KEY_ALIAS; fi
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease
+          # versionCode is single-sourced here (monotonic: 100 + run number);
+          # versionName comes from package.json inside build.gradle.
+          ./gradlew assembleRelease -PappVersionCode=$((100 + ${{ github.run_number }}))
 
-      - name: Verify APK (package + v2/v3 signatures)
+      - name: Verify APK (package + v2/v3 signatures + cert identity + size)
         run: |
-          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -n1)
+          # Pin the EXACT artifact: the file verified here is the file uploaded.
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          test -f "$APK"
           echo "APK: $APK"
+          # Smoke check: a real Capacitor release APK is never tiny.
+          SIZE=$(stat -c%s "$APK")
+          echo "APK size: $SIZE bytes"
+          test "$SIZE" -gt 1000000
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort | tail -n1)
           AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt | sort | tail -n1)
-          "$AAPT" dump badging "$APK" | head -n 3
+          # Assert identity from the artifact's own bytes (badging), not the log:
+          # exact package id + the versionName from package.json + the CI versionCode.
+          EXPECTED_NAME=$(node -p "require('./package.json').version")
+          EXPECTED_CODE=$((100 + ${{ github.run_number }}))
+          "$AAPT" dump badging "$APK" | head -n 1 | grep -q "package: name='ir.coachstudio.app' versionCode='$EXPECTED_CODE' versionName='$EXPECTED_NAME'"
           "$APKSIGNER" verify --verbose --print-certs "$APK"
           # Fail if v2 or v3 is missing.
           "$APKSIGNER" verify --verbose "$APK" | grep -q "v2 scheme): true"
           "$APKSIGNER" verify --verbose "$APK" | grep -q "v3 scheme): true"
+          # Fail closed on the WRONG KEY (PadelPro v3.15.9 lesson): the signer
+          # cert must be the coach release key, byte-for-byte fingerprint.
+          "$APKSIGNER" verify --print-certs "$APK" | grep -q "6D:D4:AF:E4:4B:B1:E1:C8:B3:C3:4A:4F:E0:79:96:B4:AB:A5:05:F5:2E:D8:1B:5F:2D:7E:B6:CC:1D:26:D4:1C"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: morabi-man-release-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
