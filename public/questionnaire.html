@@ -977,31 +977,81 @@ function showStep(idx){
 
 function validateKey(key){
   let ok = true, errId = null;
-  if(key === "path"){ ok = !!radioVal("ptype"); errId = "errPath"; }
+  const missing = [];
+  const miss = (fa, en) => missing.push(tx(fa, en));
+  if(key === "path"){ if(!radioVal("ptype")) miss("مسیر تمرینی", "a training track"); errId = "errPath"; }
   if(key === "body"){
     const a = parseNum($("#fAge").value), h = parseNum($("#fHeight").value), w = parseNum($("#fWeight").value);
-    ok = a >= 8 && a <= 95 && h >= 110 && h <= 230 && w >= 30 && w <= 250 && !!radioVal("gender"); errId = "err1";
+    if(!(a >= 8 && a <= 95)) miss("سن", "age");
+    if(!(h >= 110 && h <= 230)) miss("قد", "height");
+    if(!(w >= 30 && w <= 250)) miss("وزن", "weight");
+    if(!radioVal("gender")) miss("جنسیت", "gender");
+    errId = "err1";
   }
-  if(key === "goal"){ ok = !!radioVal("goal"); errId = "err2"; }
-  if(key === "health"){ ok = !!radioVal("level") && !!radioVal("injury"); errId = "err3"; }
-  if(key === "vip"){ ok = !!radioVal("vipSide") && !!radioVal("racketType") && !!radioVal("racketPast") && !!radioVal("overheadWeak") && !!radioVal("vipSessions"); errId = "errVip"; }
+  if(key === "goal"){ if(!radioVal("goal")) miss("هدف", "a goal"); errId = "err2"; }
+  if(key === "health"){
+    if(!radioVal("level")) miss("سطح سابقه تمرین", "training experience");
+    if(!radioVal("injury")) miss("وضعیت آسیب", "injury status");
+    // Conditional fields: answering "yes" to injury reveals the zone +
+    // surgery questions — they are starred/required too, but were never
+    // validated, so a red-flag submission could skip them entirely.
+    if(radioVal("injury") === "yes"){
+      if(!$("#injuryZone").value) miss("محل آسیب", "injury location");
+      if(!radioVal("injurySurgery")) miss("سابقه جراحی", "surgery history");
+    }
+    errId = "err3";
+  }
+  if(key === "vip"){
+    if(!radioVal("vipSide")) miss("پست تخصصی", "court position");
+    if(!radioVal("racketType")) miss("نوع بالانس راکت", "racket balance");
+    if(!radioVal("racketPast")) miss("سابقه ورزش راکتی", "racket-sport history");
+    if(!radioVal("overheadWeak")) miss("ضربه ضعیف", "weakest shot");
+    if(!radioVal("vipSessions")) miss("جلسات پدل هفتگی", "weekly padel sessions");
+    errId = "errVip";
+  }
   if(key === "padelbasic"){
     const p = radioVal("pbPlay");
-    ok = !!p && (p === "no" || (!!radioVal("pbLevel") && !!radioVal("pbSessions")));
+    if(!p) miss("وضعیت پدل", "padel status");
+    if(p === "yes"){
+      if(!radioVal("pbLevel")) miss("سطح بازی", "playing level");
+      if(!radioVal("pbSessions")) miss("جلسات پدل", "padel sessions");
+    }
     errId = "errPb";
   }
   if(key === "recovery"){
-    const s = parseNum($("#fSleep").value);
-    ok = s >= 3 && s <= 14 && !!radioVal("watch") && !!radioVal("days") && !!radioVal("minutes") && !!radioVal("equipment");
+    const sl = parseNum($("#fSleep").value);
+    if(!(sl >= 3 && sl <= 14)) miss("خواب شبانه", "nightly sleep");
+    if(!radioVal("watch")) miss("ساعت هوشمند", "smartwatch");
+    if(!radioVal("days")) miss("روزهای تمرین", "training days");
+    if(!radioVal("minutes")) miss("مدت جلسه", "session length");
+    if(!radioVal("equipment")) miss("تجهیزات", "equipment");
     errId = "errRec";
   }
   if(key === "redflag"){
-    ok = !!radioVal("rfChest") && !!radioVal("rfFaint") && !!radioVal("rfCond") && !!radioVal("rfDoc");
+    if(!radioVal("rfChest")) miss("سؤال ایمنی ۱", "safety question 1");
+    if(!radioVal("rfFaint")) miss("سؤال ایمنی ۲", "safety question 2");
+    if(!radioVal("rfCond")) miss("سؤال ایمنی ۳", "safety question 3");
+    if(!radioVal("rfDoc")) miss("سؤال ایمنی ۴", "safety question 4");
     errId = "errRf";
   }
-  if(errId){ const el = document.getElementById(errId); if(el) el.classList.toggle("show", !ok); }
+  ok = missing.length === 0;
+  if(errId){
+    const el = document.getElementById(errId);
+    if(el){
+      el.classList.toggle("show", !ok);
+      if(!ok) el.textContent = tx("لطفاً این موارد را کامل کنید: ", "Please complete: ") + missing.join(tx("، ", ", "));
+    }
+  }
   return ok;
 }
+
+/* Live re-validation: a shown step error updates/clears as fields are fixed. */
+$("#form").addEventListener("change", () => {
+  if(document.querySelector(".step.active .err.show")) validateKey(pathDef().steps[curIdx]);
+});
+$("#form").addEventListener("input", () => {
+  if(document.querySelector(".step.active .err.show")) validateKey(pathDef().steps[curIdx]);
+});
 
 $$('input[name="ptype"]').forEach(r => r.addEventListener("change", () => {
   curPath = radioVal("ptype") || "gym";
