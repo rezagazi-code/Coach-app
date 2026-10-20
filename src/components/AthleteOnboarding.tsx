@@ -1,8 +1,9 @@
 /**
  * Athlete onboarding (§18.1): the questionnaire runs FIRST and its answers
  * stay on-device until signup (no anon DB writes); account creation is the
- * final step — phone + password via signUp({ phone, password }) — after
- * which the §18.1 step-6 profile rows are written by the auth layer.
+ * final step — phone + password (the auth layer maps the number to a
+ * synthetic-email GoTrue account; see phone-as-email in lib/auth.tsx) —
+ * after which the §18.1 step-6 profile rows are written by the auth layer.
  *
  * The questionnaire itself is the finalized standalone page (same iframe
  * as the پرسش‌نامه tab); it has no account step of its own, so the signup
@@ -54,6 +55,7 @@ export default function AthleteOnboarding({ onBack }: { onBack: () => void }) {
       if (code === 'taken') setError(t('auth.errTaken'));
       else if (code === 'busy') setError(t('auth.errBusy'));
       else if (code === 'checkEmail') setNotice(t('auth.errCheckEmail'));
+      else if (code === 'checkPhone') setNotice(t('auth.errCheckPhone'));
       else setError(t('auth.errGeneric'));
     }
     // On success the auth bootstrap flips the app into the 5 tabs.

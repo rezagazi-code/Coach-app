@@ -3,7 +3,16 @@
  *
  * Supabase Auth (GoTrue), password-based v1 (§18.4): athletes sign in with
  * phone+password, coaches with email+password. No SMS OTP (Iranian delivery
- * is unreliable — §18.5), email/phone confirmation stays OFF.
+ * is unreliable — §18.5), email confirmation stays OFF.
+ *
+ * PHONE-AS-EMAIL (adopted 2026-10-21): GoTrue's phone provider was never
+ * usable here — enabling it on morabi-man demands a paid SMS provider
+ * (Twilio) and v1 has no SMS by design. Athlete accounts therefore live in
+ * GoTrue as EMAIL identities whose address is deterministically derived
+ * from the phone number (see athleteEmail below); the real E.164 number
+ * is kept in user metadata and in athletes.phone. The UX is unchanged:
+ * athletes still type phone + password. Coach auth is untouched (real
+ * email+password).
  *
  * After any sign-in the BOOTSTRAP (§18.3) maps the session to a role:
  *   user_roles row → 'admin' | 'coach' | null (athlete, no row needed)
@@ -58,8 +67,7 @@ export type AuthErrorCode =
   | 'wrong' // bad credentials
   | 'taken' // phone/email already registered
   | 'checkEmail' // signup ok but no session yet (email confirmation unexpectedly ON)
-  | 'checkPhone' // athlete signup ok but no session (phone confirmation ON; no SMS flow in v1)
-  | 'phoneOff' // phone provider disabled on the server — athlete auth cannot work at all
+  | 'checkPhone' // athlete signup ok but no session (confirmation ON for the synthetic-email account; no way for the athlete to complete it in v1)
   | 'busy' // still 429 after backoff
   | 'generic';
 
@@ -132,9 +140,11 @@ interface AuthCtx {
 const Ctx = createContext<AuthCtx | null>(null);
 
 /**
- * Iranian mobile → E.164, the form GoTrue phone auth expects.
+ * Iranian mobile → E.164 (+98…), the canonical form of the number.
  * 09xxxxxxxxx / 9xxxxxxxxx → +98…; an already-international number passes
  * through. Applied identically at signup and login so they always match.
+ * This E.164 string is what athletes.phone stores and what athleteEmail
+ * derives the auth identity from.
  */
 export function normalizePhone(raw: string): string {
   // Persian (۰-۹) and Arabic-Indic (٠-٩) digits → Latin, so a number typed
@@ -149,6 +159,29 @@ export function normalizePhone(raw: string): string {
   if (p.startsWith('9') && p.length === 10) return `+98${p}`;
   if (p.startsWith('98') && p.length === 12) return `+${p}`;
   return p;
+}
+
+/** Domain reserved for synthetic athlete auth identities (phone-as-email,
+ *  2026-10-21). Not a real mailbox domain — addresses here are never mailed;
+ *  they only name the GoTrue user. */
+export const ATHLETE_EMAIL_DOMAIN = 'athlete.morabi-man.app';
+
+/**
+ * The athlete's GoTrue identity: a deterministic synthetic email derived
+ * from the normalized E.164 number — `p<digits>@athlete.morabi-man.app`
+ * (digits only, no '+'). Same number in ⇒ same address out, at signup,
+ * login, and everywhere else, so the mapping needs no storage.
+ */
+export function athleteEmail(rawPhone: string): string {
+  const digits = normalizePhone(rawPhone).replace(/\D/g, '');
+  return `p${digits}@${ATHLETE_EMAIL_DOMAIN}`;
+}
+
+/** True when a GoTrue user is an athlete identity (synthetic email, or a
+ *  legacy phone identity should one ever exist). */
+export function isAthleteIdentity(user: { email?: string | null; phone?: string | null }): boolean {
+  if (user.phone) return true;
+  return typeof user.email === 'string' && user.email.endsWith(`@${ATHLETE_EMAIL_DOMAIN}`);
 }
 
 /** §18.5: exponential backoff when GoTrue rate-limits (429). */
@@ -166,13 +199,6 @@ async function callAuth<T extends { error: AuthError | null }>(fn: () => Promise
 function mapAuthError(error: AuthError): AuthErrorCode {
   if (error.status === 429) return 'busy';
   const msg = error.message.toLowerCase();
-  const code = (error as { code?: string }).code;
-  // Phone provider disabled server-side (live-verified on morabi-man
-  // 2026-10-21: external.phone=false). Name it honestly instead of a
-  // generic error — the fix is a dashboard toggle, not a user mistake.
-  if (code === 'phone_provider_disabled' || msg.includes('phone logins are disabled')) {
-    return 'phoneOff';
-  }
   if (msg.includes('already registered') || msg.includes('already exists') || msg.includes('user already')) {
     return 'taken';
   }
@@ -237,13 +263,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             coachId: myAthlete.coach_id,
           }).catch((err) => console.error('[auth] pending submission flush failed', err));
         }
-        if (!myAthlete && !myRole && !myCoach && !next.user.phone) {
+        if (!myAthlete && !myRole && !myCoach && !isAthleteIdentity(next.user)) {
           // ORPHAN email identity: no role, no coach row, no athlete row.
           // This is a coach whose profile insert never ran — with
           // "Confirm email" unexpectedly ON, signUpCoach returns before a
-          // session exists (the PadelPro signup-block trap class). Phone
-          // identities are excluded: a row-less phone user is an athlete
-          // whose profile was deferred (no active coach seeded yet).
+          // session exists (the PadelPro signup-block trap class). Athlete
+          // identities are excluded: a row-less athlete user (synthetic
+          // email, phone-as-email) is an athlete whose profile was
+          // deferred (no active coach seeded yet).
           // Heal from the stored signup intent; without one (confirmed on
           // another device), route to the completion form — never
           // silently into the athlete shell with the wrong role.
@@ -341,8 +368,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInAthlete = useCallback(
     async (phone: string, password: string): Promise<AuthResult> => {
       if (!isSupabaseConfigured) return { ok: false, code: 'generic' };
+      // Phone-as-email: the password sign-in runs against the synthetic
+      // email derived from the number — the user still types phone+password.
       const res = await callAuth(() =>
-        supabase.auth.signInWithPassword({ phone: normalizePhone(phone), password })
+        supabase.auth.signInWithPassword({ email: athleteEmail(phone), password })
       );
       if (res.error) {
         console.error('[auth] athlete sign-in failed', res.error);
@@ -358,15 +387,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (input: { name: string; phone: string; password: string }): Promise<AuthResult> => {
       if (!isSupabaseConfigured) return { ok: false, code: 'generic' };
       const phone = normalizePhone(input.phone);
-      const res = await callAuth(() => supabase.auth.signUp({ phone, password: input.password }));
+      // Phone-as-email: the account is an email identity on the synthetic
+      // address; the real E.164 number rides in user metadata (and lands
+      // in athletes.phone below) so no profile data changes.
+      const res = await callAuth(() =>
+        supabase.auth.signUp({
+          email: athleteEmail(phone),
+          password: input.password,
+          options: { data: { phone, role_intent: 'athlete' } },
+        })
+      );
       if (res.error) {
         console.error('[auth] athlete sign-up failed', res.error);
         return { ok: false, code: mapAuthError(res.error) };
       }
       const user = res.data.user;
       if (!user) return { ok: false, code: 'generic' };
-      // Phone confirmation ON would need an SMS OTP flow v1 doesn't have —
-      // report it as its own state, never as "confirm your email".
+      // GoTrue obfuscates a duplicate signup when confirmation is ON: a
+      // user object with NO identities and no error. That is "already
+      // registered", not a pending confirmation — say so honestly.
+      if (Array.isArray(user.identities) && user.identities.length === 0) {
+        return { ok: false, code: 'taken' };
+      }
+      // Confirmation ON for the synthetic-email account would strand the
+      // athlete (no mailbox to confirm from, no SMS flow in v1) — report
+      // it as its own state, never as "confirm your email".
       if (!res.data.session) return { ok: false, code: 'checkPhone' };
       // §18.1 step 6: athletes row → primary membership. The v6 self-insert
       // policy requires an ACTIVE coach, resolved from the coach's slug.

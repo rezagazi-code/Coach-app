@@ -102,9 +102,6 @@ export default function AuthGate({ onNewAthlete }: { onNewAthlete: () => void })
         setNotice(t('auth.errCheckPhone'));
         setMode('login');
         break;
-      case 'phoneOff':
-        setError(t('auth.errPhoneOff'));
-        break;
       default:
         setError(t('auth.errGeneric'));
     }
