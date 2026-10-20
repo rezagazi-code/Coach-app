@@ -139,7 +139,10 @@ jobs:
           "$APKSIGNER" verify --verbose "$APK" | grep -q "v3 scheme): true"
           # Fail closed on the WRONG KEY (PadelPro v3.15.9 lesson): the signer
           # cert must be the coach release key, byte-for-byte fingerprint.
-          "$APKSIGNER" verify --print-certs "$APK" | grep -q "6D:D4:AF:E4:4B:B1:E1:C8:B3:C3:4A:4F:E0:79:96:B4:AB:A5:05:F5:2E:D8:1B:5F:2D:7E:B6:CC:1D:26:D4:1C"
+          # apksigner prints the digest as lowercase hex WITHOUT colons —
+          # grep that exact form (colon/uppercase form never matches, which
+          # failed run 39513175874 despite a correct cert).
+          "$APKSIGNER" verify --print-certs "$APK" | grep -q "6dd4afe44bb1e1c8b3c34a4fe07996b4aba505f52ed81b5f2d7eb6cc1d26d41c"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
