@@ -39,6 +39,7 @@ import {
   flushQueue,
   isSupabaseConfigured,
   joinCoach,
+  persistPendingSubmission,
   setCurrentAthleteId,
   supabase,
   type Athlete,
@@ -227,6 +228,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAthlete(myAthlete);
         setCurrentAthleteId(myAthlete?.id ?? null);
         if (myAthlete) void flushQueue(); // stamp queued pre-login writes
+        if (myAthlete?.coach_id) {
+          // A questionnaire submission may still be waiting in storage
+          // (signup-time persist interrupted, or the athlete re-did the
+          // questionnaire in its tab) — flush it under this identity.
+          void persistPendingSubmission({
+            athleteId: myAthlete.id,
+            coachId: myAthlete.coach_id,
+          }).catch((err) => console.error('[auth] pending submission flush failed', err));
+        }
         if (!myAthlete && !myRole && !myCoach && !next.user.phone) {
           // ORPHAN email identity: no role, no coach row, no athlete row.
           // This is a coach whose profile insert never ran — with
@@ -373,6 +383,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             coach_id: coachRow.id,
           });
           await joinCoach({ athlete_id: athleteRow.id, coach_id: coachRow.id, is_primary: true });
+          // §18.1 step 6, final write: the questionnaire was completed
+          // BEFORE signup and its submission has been waiting in local
+          // storage — persist it now that the membership exists (the v6/v7
+          // insert policies require it). Idempotent + queue-backed: a
+          // failure here never fails the signup; bootstrap retries it.
+          await persistPendingSubmission({ athleteId: athleteRow.id, coachId: coachRow.id }).catch(
+            (err) => console.error('[auth] questionnaire submit persist failed (will retry)', err)
+          );
         } else {
           console.warn('[auth] no active coach for slug', DEFAULT_COACH_SLUG, '— athlete profile deferred');
         }

@@ -1268,11 +1268,136 @@ function renderResults(d){
   }
 }
 
+/* ================================================================
+   SUBMIT WIRING (§18.1) — persist through the parent app.
+   A submission client_uuid is minted when the questionnaire STARTS
+   (kept in localStorage km.qsubmit.v1, so a page reload mid-flow keeps
+   the SAME submission). On «ساخت برنامه» the raw answers + coach flags
+   + program skeleton are stored under km.pendingSubmission.v1
+   (same-origin localStorage — the parent app reads it after signup and
+   on every flush) and posted to the parent frame. This page NEVER
+   talks to the database itself (§18.1 step 3: no pre-auth DB writes);
+   the app owns the writes and upserts on this uuid (migration v7), so
+   a double-tap or retry can never create a second submission.
+================================================================ */
+const QSUBMIT_KEY = "km.qsubmit.v1";
+const PENDING_SUBMIT_KEY = "km.pendingSubmission.v1";
+let submitSent = false;
+
+function newUuid(){
+  if(window.crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0, v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+function loadDraft(){
+  try {
+    const raw = localStorage.getItem(QSUBMIT_KEY);
+    if(raw){ const d = JSON.parse(raw); if(d && d.uuid && !d.submitted) return d; }
+  } catch(e){}
+  const d = { uuid:newUuid(), startedAt:new Date().toISOString(), submitted:false };
+  try { localStorage.setItem(QSUBMIT_KEY, JSON.stringify(d)); } catch(e){}
+  return d;
+}
+let qDraft = loadDraft();
+
+function ageBandOf(age){
+  if(!(age > 0)) return "unknown";
+  if(age < 13) return "child";
+  if(age < 18) return "teen";
+  if(age < 40) return "adult";
+  if(age < 60) return "middle";
+  return "senior";
+}
+const GOAL_CODE = { fatloss:"fat_loss", padel:"padel_perf", muscle:"muscle", strength:"strength", health:"health" };
+function splitFor(days){ return days <= 2 ? "fullbody_ab" : days === 3 ? "upper_lower" : "push_pull_legs"; }
+
+function collectSubmission(d){
+  // Raw answers: every radio group's checked value + every id-carrying
+  // field's value, verbatim (digits stay as typed — the app normalizes
+  // when rendering; silent FA-digit parse failures are a PadelPro lesson).
+  const answers = {};
+  const names = new Set();
+  $$('#form input[type="radio"]').forEach(r => names.add(r.name));
+  names.forEach(n => { const v = radioVal(n); if(v !== null) answers[n] = v; });
+  $$('#form input[type="text"], #form input[type="number"], #form input[type="tel"], #form select, #form textarea').forEach(el => {
+    if(el.id) answers[el.id] = el.value;
+  });
+  const painZones = [], painSurgeries = [];
+  document.querySelectorAll("#vipPainMap .pm-row").forEach(r => {
+    const tg = r.querySelector(".pm-toggle");
+    if(tg && tg.checked){
+      painZones.push(r.dataset.zonek);
+      const sr = r.querySelector('.pm-surg input[type="radio"]:checked');
+      if(sr && sr.value === "yes") painSurgeries.push(r.dataset.zonek);
+    }
+  });
+  answers.painMap = d.painMap;
+  answers.painZones = painZones;
+  const injuries = [], surgeries = [];
+  if(d.injury === "yes" && d.injuryZone){
+    injuries.push(d.injuryZone);
+    if(d.injurySurgery === "yes") surgeries.push(d.injuryZone);
+  }
+  painZones.forEach(z => { if(!injuries.includes(z)) injuries.push(z); });
+  painSurgeries.forEach(z => { if(!surgeries.includes(z)) surgeries.push(z); });
+  const bmiC = bmiCat(d.bmi);
+  const goalRaw = radioVal("goal") || (curPath === "padel" ? "padel" : null);
+  const flags = {
+    bmi: isFinite(d.bmi) ? Math.round(d.bmi * 10) / 10 : null,
+    bmi_cat: bmiC.label,
+    bmi_key: bmiC.key,
+    age_band: ageBandOf(d.age),
+    injuries: injuries,
+    surgeries: surgeries,
+    goal: goalRaw,
+    sleep_hours: d.sleep,
+    days_per_week: d.gymDays
+  };
+  const blocked = curPath === "aionly" &&
+    (d.rf.chest === "yes" || d.rf.faint === "yes" || d.rf.cond === "yes" || d.rf.doc === "yes");
+  const goalCode = GOAL_CODE[goalRaw] || "health";
+  return {
+    clientUuid: qDraft.uuid,
+    track: curPath,
+    answers: answers,
+    flags: flags,
+    program: {
+      goal: goalCode,
+      split: splitFor(d.gymDays),
+      days_per_week: d.gymDays,
+      ai_summary: "AI draft from questionnaire — track " + curPath + ", goal " + goalCode +
+        ", BMI " + flags.bmi + " (" + bmiC.key + "), age band " + flags.age_band +
+        ", injuries: " + (injuries.join(", ") || "none") +
+        ", surgeries: " + (surgeries.join(", ") || "none") +
+        ", sleep " + d.sleep + "h, " + d.gymDays + " d/wk."
+    },
+    redFlagBlocked: blocked,
+    submittedAt: new Date().toISOString()
+  };
+}
+
+function emitSubmission(profile){
+  if(submitSent) return; // in-flight guard: double-tap cannot re-emit
+  submitSent = true;
+  $$(".finishBtn").forEach(b => { b.disabled = true; });
+  const payload = collectSubmission(profile);
+  try { localStorage.setItem(PENDING_SUBMIT_KEY, JSON.stringify(payload)); } catch(e){}
+  qDraft.submitted = true;
+  try { localStorage.setItem(QSUBMIT_KEY, JSON.stringify(qDraft)); } catch(e){}
+  try {
+    if(window.parent && window.parent !== window)
+      window.parent.postMessage({ type:"km-questionnaire-submit", payload:payload }, "*");
+  } catch(e){}
+}
+
 /* events */
 $$(".finishBtn").forEach(b => b.addEventListener("click", () => {
   const key = pathDef().steps[curIdx];
   if(!validateKey(key)) return;
   const profile = calculateProfile();
+  emitSubmission(profile);
   renderResults(profile);
   $("#wizard").classList.add("hidden");
   $("#results").classList.add("show");
@@ -1287,6 +1412,12 @@ $("#tabCoach").addEventListener("click", () => {
   $("#coachView").classList.remove("hidden"); $("#traineeView").classList.add("hidden");
 });
 $("#restartBtn").addEventListener("click", () => {
+  // A fresh evaluation is a NEW submission: mint a fresh uuid so it can
+  // never collide with (or overwrite) the previous submit's rows.
+  qDraft = { uuid:newUuid(), startedAt:new Date().toISOString(), submitted:false };
+  try { localStorage.setItem(QSUBMIT_KEY, JSON.stringify(qDraft)); } catch(e){}
+  submitSent = false;
+  $$(".finishBtn").forEach(b => { b.disabled = false; });
   $("#results").classList.remove("show");
   $("#wizard").classList.remove("hidden");
   showStep(0);
