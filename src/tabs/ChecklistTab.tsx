@@ -16,7 +16,7 @@ const R = 54;
 const CIRC = 2 * Math.PI * R;
 
 export default function ChecklistTab() {
-  const { t } = useLang();
+  const { t, num } = useLang();
   const [habits, setHabits] = useState<Habit[]>([
     { key: 'water', done: false },
     { key: 'sleep', done: false },
@@ -29,16 +29,15 @@ export default function ChecklistTab() {
   const pct = doneCount / habits.length;
 
   const toggle = (key: Habit['key']) => {
-    setHabits((prev) => {
-      const next = prev.map((h) => (h.key === key ? { ...h, done: !h.done } : h));
-      const turned = next.find((h) => h.key === key);
-      if (turned?.done) {
-        setToast(null);
-        requestAnimationFrame(() => setToast(t('c.xp')));
-        window.setTimeout(() => setToast(null), 1800);
-      }
-      return next;
-    });
+    const current = habits.find((h) => h.key === key);
+    if (!current) return;
+    const turningOn = !current.done;
+    setHabits((prev) => prev.map((h) => (h.key === key ? { ...h, done: !h.done } : h)));
+    if (turningOn) {
+      setToast(null);
+      requestAnimationFrame(() => setToast(t('c.xp')));
+      window.setTimeout(() => setToast(null), 1800);
+    }
   };
 
   return (
@@ -64,7 +63,7 @@ export default function ChecklistTab() {
             />
           </svg>
           <div className="ring-label">
-            <span className="ring-frac">{`${doneCount}/${habits.length}`}</span>
+            <span className="ring-frac">{`${num(doneCount)}/${num(habits.length)}`}</span>
           </div>
         </div>
         {doneCount === habits.length && <div className="all-done">{t('c.allDone')}</div>}

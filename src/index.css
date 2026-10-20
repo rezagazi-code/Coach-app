@@ -276,6 +276,13 @@
   -webkit-overflow-scrolling: touch;
   position: relative;
 }
+/* Tab host: every tab stays mounted; inactive sections are display:none. */
+.tab-host {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 .tab-content.full-bleed { padding: 0; }
 .questionnaire-frame-tab {
   width: 100%;

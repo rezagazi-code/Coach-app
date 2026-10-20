@@ -2,12 +2,20 @@
  * Tab (b) — live session logger.
  * Header: «جلسه امروز: سینه و سرشانه» → exercise «پرس بالاسینه با دمبل».
  * 4 tappable set cards (sets 1–2 pre-logged), weight stepper ±2.5, reps ±1,
- * RPE row 7→10 with reps-in-reserve hint, big «ثبت ست», PR overlay at ≥35kg,
- * end-of-session feedback.
+ * RPE row 7→10 with reps-in-reserve hint, big «ثبت ست», PR overlay when a set
+ * beats the exercise's previous best 1RM estimate, end-of-session feedback.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLang } from '../lib/i18n';
 import Toast from '../components/Toast';
+import {
+  enqueueWrite,
+  enqueueLoggedSet,
+  getCurrentAthleteId,
+  newClientUuid,
+  flushQueue,
+  type SessionDifficulty,
+} from '../lib/supabase';
 
 interface SetLog {
   weight: number; // kg
@@ -25,7 +33,40 @@ const RPE_STEPS = [
   { v: 10, fa: '۰', en: '0' },
 ];
 
-const PR_KG = 35;
+/** Exercise identity for the demo session (PRs tracked per exercise). */
+const EXERCISE_KEY = 'w.exercise';
+
+/** Estimated 1RM (Epley) — PR = beating your previous best for THIS exercise. */
+const epley = (weight: number, reps: number) => weight * (1 + reps / 30);
+
+interface BestEffort {
+  weight: number;
+  reps: number;
+}
+
+const prStorageKey = (exercise: string) => `km.pr.v1.${exercise}`;
+
+function loadBest(exercise: string): BestEffort | null {
+  try {
+    const raw = localStorage.getItem(prStorageKey(exercise));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<BestEffort>;
+    if (typeof parsed.weight === 'number' && typeof parsed.reps === 'number') {
+      return { weight: parsed.weight, reps: parsed.reps };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function saveBest(exercise: string, best: BestEffort) {
+  try {
+    localStorage.setItem(prStorageKey(exercise), JSON.stringify(best));
+  } catch {
+    /* storage unavailable — PR still shown this session */
+  }
+}
 
 export default function WorkoutTab() {
   const { t, num, lang } = useLang();
@@ -40,6 +81,32 @@ export default function WorkoutTab() {
   const [showPR, setShowPR] = useState(false);
   const [feedback, setFeedback] = useState<'easy' | 'ok' | 'hard' | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  // Offline-first session identity: one client-generated id per app session,
+  // used as the workout_sessions row's id AND client_uuid (upsert-safe).
+  const sessionIdRef = useRef<string | null>(null);
+  const todayISO = () => new Date().toISOString().slice(0, 10);
+
+  const ensureSession = (): string => {
+    if (sessionIdRef.current) return sessionIdRef.current;
+    const id = newClientUuid();
+    sessionIdRef.current = id;
+    enqueueWrite('workout_sessions', {
+      id,
+      athlete_id: getCurrentAthleteId(),
+      coach_id: null,
+      program_id: null,
+      date: todayISO(),
+      started_at: new Date().toISOString(),
+      completed_at: null,
+      duration_min: null,
+      difficulty: null,
+      avg_rpe: null,
+      notes: '',
+      client_uuid: id,
+    });
+    return id;
+  };
 
   const activeSet = sets[active];
   const allDone = sets.every((s) => s.done);
@@ -65,7 +132,14 @@ export default function WorkoutTab() {
 
   const logSet = () => {
     if (activeSet.done || rpe === null) return;
-    const isPR = activeSet.weight >= PR_KG;
+    // PR detection (per supabase-training-log.sql design): compare against
+    // the athlete's previous best for this same exercise — seeded here from
+    // the two pre-logged sets until real history loads.
+    const prevBest = loadBest(EXERCISE_KEY) ?? { weight: 32.5, reps: 10 };
+    const isPR = epley(activeSet.weight, activeSet.reps) > epley(prevBest.weight, prevBest.reps) + 1e-9;
+    if (isPR) {
+      saveBest(EXERCISE_KEY, { weight: activeSet.weight, reps: activeSet.reps });
+    }
     setSets((prev) => {
       const next = [...prev];
       next[active] = { ...next[active], done: true, rpe };
@@ -74,8 +148,42 @@ export default function WorkoutTab() {
     setRpe(null);
     flash(t('w.logged'));
     if (isPR) setShowPR(true);
+    // Offline queue: session logs persist locally and sync (idempotent)
+    // whenever the Supabase project exists and the athlete is known.
+    const sid = ensureSession();
+    enqueueLoggedSet(sid, {
+      set_number: active + 1,
+      weight_kg: activeSet.weight,
+      reps: activeSet.reps,
+      rpe,
+      is_pr: isPR,
+    });
     const nextIdx = sets.findIndex((s, i) => i > active && !s.done);
     if (nextIdx !== -1) setActive(nextIdx);
+  };
+
+  const finishWith = (fb: 'easy' | 'ok' | 'hard') => {
+    setFeedback(fb);
+    const sid = ensureSession();
+    const rpes = sets.filter((s) => s.done && s.rpe != null).map((s) => s.rpe as number);
+    const avgRpe = rpes.length ? Math.round((rpes.reduce((a, b) => a + b, 0) / rpes.length) * 10) / 10 : null;
+    const difficulty: SessionDifficulty = fb === 'easy' ? 'too_easy' : fb === 'hard' ? 'too_hard' : 'just_right';
+    // Completion upserts on client_uuid — re-submits never duplicate.
+    enqueueWrite('workout_sessions', {
+      id: sid,
+      athlete_id: getCurrentAthleteId(),
+      coach_id: null,
+      program_id: null,
+      date: todayISO(),
+      started_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      duration_min: null,
+      difficulty,
+      avg_rpe: avgRpe,
+      notes: '',
+      client_uuid: sid,
+    });
+    void flushQueue();
   };
 
   return (
@@ -194,13 +302,13 @@ export default function WorkoutTab() {
           <div className="feedback-title">{t('w.sessionDone')}</div>
           {!feedback ? (
             <div className="feedback-row">
-              <button type="button" className="neon-ghost feedback-btn" onClick={() => setFeedback('easy')}>
+              <button type="button" className="neon-ghost feedback-btn" onClick={() => finishWith('easy')}>
                 {t('w.easy')}
               </button>
-              <button type="button" className="neon-btn neon-burst feedback-btn" onClick={() => setFeedback('ok')}>
+              <button type="button" className="neon-btn neon-burst feedback-btn" onClick={() => finishWith('ok')}>
                 {t('w.ok')}
               </button>
-              <button type="button" className="neon-ghost feedback-btn" onClick={() => setFeedback('hard')}>
+              <button type="button" className="neon-ghost feedback-btn" onClick={() => finishWith('hard')}>
                 {t('w.hard')}
               </button>
             </div>

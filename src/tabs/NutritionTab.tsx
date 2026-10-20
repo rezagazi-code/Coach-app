@@ -40,7 +40,7 @@ function WaveTank({
   goal: number;
   onQuick: () => void;
 }) {
-  const { t, num } = useLang();
+  const { t, num, lang } = useLang();
   const pct = Math.min(100, Math.round((value / goal) * 100));
   const unitKey = UNIT[def.key];
   return (
@@ -55,7 +55,10 @@ function WaveTank({
             />
           </svg>
         </div>
-        <div className="tank-pct">{num(pct)}٪</div>
+        <div className="tank-pct">
+          {num(pct)}
+          {lang === 'fa' ? '٪' : '%'}
+        </div>
       </div>
       <div className="tank-vals">
         {num(value)} / {num(goal)} {t(unitKey)}

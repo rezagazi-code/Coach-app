@@ -1,37 +1,57 @@
 /**
  * Tab (e) — coach chat. Coach «رضا گزی» online header, 2 starter messages,
- * input + send (local append, «الان» timestamp), coach auto-reply after 2s.
- * Demo data only.
+ * input + send (local append, «الان» timestamp), one-time coach auto-reply
+ * after the athlete's first message. Demo data only.
+ *
+ * Starter messages keep their i18n KEYS (not the translated text) so they
+ * re-render in the new language when the user toggles FA/EN mid-session.
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLang } from '../lib/i18n';
 
 interface Msg {
   id: number;
   from: 'coach' | 'athlete';
-  text: string;
-  time: string;
+  /** Static seed → i18n key; user-typed → literal text. */
+  key?: string;
+  text?: string;
+  time?: string;
+  /** «الان / now» label — an i18n key so it follows language switches. */
+  timeKey?: string;
 }
+
+const SEEDS: Msg[] = [
+  { id: 1, from: 'coach', key: 'ch.msg1', time: '21:42' },
+  { id: 2, from: 'athlete', key: 'ch.msg2', time: '21:50' },
+];
 
 export default function ChatTab() {
   const { t, num, lang } = useLang();
-  const [messages, setMessages] = useState<Msg[]>([
-    { id: 1, from: 'coach', text: t('ch.msg1'), time: '21:42' },
-    { id: 2, from: 'athlete', text: t('ch.msg2'), time: '21:50' },
-  ]);
+  const [messages, setMessages] = useState<Msg[]>(SEEDS);
   const [draft, setDraft] = useState('');
   const idRef = useRef(3);
   const timerRef = useRef<number | null>(null);
+  const repliedRef = useRef(false); // one-time auto-reply, per prototype spec
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const bodyOf = (m: Msg) => (m.key ? t(m.key) : (m.text ?? ''));
 
   const send = () => {
     const text = draft.trim();
     if (!text) return;
     const id = idRef.current++;
-    setMessages((m) => [...m, { id, from: 'athlete', text, time: t('ch.now') }]);
+    setMessages((m) => [...m, { id, from: 'athlete', text, timeKey: 'ch.now' }]);
     setDraft('');
+    if (repliedRef.current) return;
+    repliedRef.current = true;
     if (timerRef.current) window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => {
-      setMessages((m) => [...m, { id: idRef.current++, from: 'coach', text: t('ch.reply'), time: t('ch.now') }]);
+      setMessages((m) => [...m, { id: idRef.current++, from: 'coach', key: 'ch.reply', timeKey: 'ch.now' }]);
     }, 2000);
   };
 
@@ -51,8 +71,10 @@ export default function ChatTab() {
       <div className="chat-list">
         {messages.map((m) => (
           <div key={m.id} className={m.from === 'coach' ? 'bubble coach' : 'bubble athlete'}>
-            <div className="bubble-text">{m.text}</div>
-            <div className="bubble-time">{num(m.time)}</div>
+            <div className="bubble-text">{bodyOf(m)}</div>
+            {(m.time || m.timeKey) && (
+              <div className="bubble-time">{num(m.timeKey ? t(m.timeKey) : (m.time ?? ''))}</div>
+            )}
           </div>
         ))}
       </div>
