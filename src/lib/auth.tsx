@@ -92,7 +92,12 @@ const Ctx = createContext<AuthCtx | null>(null);
  * through. Applied identically at signup and login so they always match.
  */
 export function normalizePhone(raw: string): string {
-  const p = raw.replace(/[\s-]/g, '');
+  // Persian (۰-۹) and Arabic-Indic (٠-٩) digits → Latin, so a number typed
+  // with a FA keyboard matches the E.164 form GoTrue expects.
+  const latin = raw
+    .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+  const p = latin.replace(/[\s-]/g, '');
   if (p.startsWith('+')) return p;
   if (p.startsWith('0098')) return `+${p.slice(2)}`;
   if (p.startsWith('09') && p.length === 11) return `+98${p.slice(1)}`;
