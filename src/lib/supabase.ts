@@ -23,6 +23,16 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 /** Demo coach identity for UI/mock data ONLY (NOT a uuid — never a DB value). */
 export const DEMO_COACH_ID = 'coach-reza-gazi';
 
+/**
+ * Slug of the coach a new athlete joins at signup (§18.1 step 6).
+ * The /c/{slug} route does not exist in the app yet, and Phase 1 is
+ * single-coach (Reza, seeded with slug 'reza' per v6 §7) — so signup
+ * resolves this slug through the public coach read instead of a URL param.
+ * When routing lands, the slug comes from the route and this is only a
+ * fallback.
+ */
+export const DEFAULT_COACH_SLUG = 'reza';
+
 // --------------------------------------------------------------------------
 // Environment — fail loud in dev, never silently ship a wrong endpoint.
 // --------------------------------------------------------------------------
@@ -183,6 +193,41 @@ export interface ChatMessage {
   body: string;
   read_at: string | null;
   created_at: string;
+}
+
+/** v1 user_roles. Athletes have NO row here (§18.5: no self-escalation —
+ *  the only policy on user_roles is self-SELECT; roles are written solely
+ *  by the v6 approval trigger or Reza's admin seed). */
+export type UserRole = 'coach' | 'admin';
+
+/** v2 coaches + v6 approval fields (approved_at / approved_by). */
+export interface Coach {
+  id: string;
+  user_id: string | null;
+  slug: string;
+  display_name: string;
+  photo_url: string | null;
+  bio: string;
+  capabilities: string[]; // sport codes, e.g. ['gym','padel']
+  specialties: string[];
+  pricing: Record<string, unknown>;
+  currency: string;
+  plan: string;
+  plan_expires_at: string | null;
+  is_active: boolean;
+  approved_at: string | null;
+  approved_by: string | null;
+  created_at: string;
+}
+
+/** v6 athlete_coaches — athlete ↔ coach memberships. */
+export interface AthleteCoach {
+  id: string;
+  athlete_id: string;
+  coach_id: string;
+  is_primary: boolean;
+  status: 'active' | 'left' | 'removed';
+  joined_at: string;
 }
 
 // --------------------------------------------------------------------------
@@ -398,6 +443,110 @@ export async function sendMessage(input: {
     .single();
   if (error) throw error;
   return data as ChatMessage;
+}
+
+// --------------------------------------------------------------------------
+// AUTH + ENTRY helpers (§18) — role → bootstrap mapping and the two signup
+// profile writes. Reads use the caller's own session, so RLS does the
+// isolation; user_roles is self-SELECT only (§18.5).
+// --------------------------------------------------------------------------
+
+/** §18.3 step 1: the caller's role, or null for athletes (no row needed). */
+export async function fetchMyRole(userId: string): Promise<UserRole | null> {
+  const { data, error } = await requireClient()
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data?.role as UserRole | undefined) ?? null;
+}
+
+/** §18.3 step 3: the caller's own coach profile (any active state). */
+export async function fetchCoachByUserId(userId: string): Promise<Coach | null> {
+  const { data, error } = await requireClient()
+    .from('coaches')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as Coach | null) ?? null;
+}
+
+/** §18.1 step 1: public profile of an ACTIVE coach (powers /c/{slug}). */
+export async function fetchActiveCoachBySlug(slug: string): Promise<Coach | null> {
+  const { data, error } = await requireClient()
+    .from('coaches')
+    .select('*')
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as Coach | null) ?? null;
+}
+
+/** §18.3 step 4: the caller's own athlete profile. */
+export async function fetchAthleteByUserId(userId: string): Promise<Athlete | null> {
+  const { data, error } = await requireClient()
+    .from('athletes')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as Athlete | null) ?? null;
+}
+
+/**
+ * §18.2 step 1: coach signup profile write. is_active is forced false —
+ * the v6 approval gate: the 'coach' role is granted by the DB trigger only
+ * when Reza flips is_active to true, never at signup.
+ */
+export async function createCoachProfile(input: {
+  user_id: string;
+  slug: string;
+  display_name: string;
+}): Promise<Coach> {
+  const { data, error } = await requireClient()
+    .from('coaches')
+    .insert({ ...input, is_active: false })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Coach;
+}
+
+/**
+ * §18.1 step 6: athlete signup profile write. The v6 self-insert policy
+ * requires coach_id to be an ACTIVE coach — resolve the slug first.
+ */
+export async function createAthleteProfile(input: {
+  user_id: string;
+  full_name: string;
+  phone: string;
+  coach_id: string;
+}): Promise<Athlete> {
+  const { data, error } = await requireClient()
+    .from('athletes')
+    .insert(input)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Athlete;
+}
+
+/** §18.1 step 6: membership row (first join = primary coach). */
+export async function joinCoach(input: {
+  athlete_id: string;
+  coach_id: string;
+  is_primary: boolean;
+}): Promise<AthleteCoach> {
+  const { data, error } = await requireClient()
+    .from('athlete_coaches')
+    .insert(input)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as AthleteCoach;
 }
 
 // --------------------------------------------------------------------------
