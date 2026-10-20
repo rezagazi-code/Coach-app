@@ -135,8 +135,11 @@ jobs:
           "$AAPT" dump badging "$APK" | head -n 1 | grep -q "package: name='ir.coachstudio.app' versionCode='$EXPECTED_CODE' versionName='$EXPECTED_NAME'"
           "$APKSIGNER" verify --verbose --print-certs "$APK"
           # Fail if v2 or v3 is missing.
-          "$APKSIGNER" verify --verbose "$APK" | grep -q "v2 scheme): true"
-          "$APKSIGNER" verify --verbose "$APK" | grep -q "v3 scheme): true"
+          # apksigner's real line: 'Verified using v2 scheme (APK Signature
+          # Scheme v2): true' — match THAT shape (the old 'v2 scheme): true'
+          # pattern can never match and failed runs 39513175874/39513768985).
+          "$APKSIGNER" verify --verbose "$APK" | grep -Eq "Verified using v2 scheme .*: true"
+          "$APKSIGNER" verify --verbose "$APK" | grep -Eq "Verified using v3 scheme .*: true"
           # Fail closed on the WRONG KEY (PadelPro v3.15.9 lesson): the signer
           # cert must be the coach release key, byte-for-byte fingerprint.
           # apksigner prints the digest as lowercase hex WITHOUT colons —
