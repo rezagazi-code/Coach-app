@@ -161,14 +161,20 @@ export function normalizePhone(raw: string): string {
   return p;
 }
 
-/** Domain reserved for synthetic athlete auth identities (phone-as-email,
- *  2026-10-21). Not a real mailbox domain — addresses here are never mailed;
- *  they only name the GoTrue user. */
-export const ATHLETE_EMAIL_DOMAIN = 'athlete.morabi-man.app';
+/** Domain for synthetic athlete auth identities (phone-as-email,
+ *  2026-10-21). Addresses here are never mailed; they only name the
+ *  GoTrue user. The domain MUST resolve in DNS: GoTrue validates the
+ *  email host at signup — the first choice, athlete.morabi-man.app, was
+ *  rejected live with `email_address_invalid` because morabi-man.app is
+ *  NXDOMAIN. The project's own Supabase hostname resolves, is scoped to
+ *  this project, and receives no mail. WARNING: this value is baked into
+ *  every athlete's auth identity — changing it later means migrating
+ *  existing users' emails in auth.users, not just editing this line. */
+export const ATHLETE_EMAIL_DOMAIN = 'mxvrpycitowqkduzvhdy.supabase.co';
 
 /**
  * The athlete's GoTrue identity: a deterministic synthetic email derived
- * from the normalized E.164 number — `p<digits>@athlete.morabi-man.app`
+ * from the normalized E.164 number — `p<digits>@<ATHLETE_EMAIL_DOMAIN>`
  * (digits only, no '+'). Same number in ⇒ same address out, at signup,
  * login, and everywhere else, so the mapping needs no storage.
  */
