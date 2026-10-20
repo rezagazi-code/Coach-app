@@ -1,25 +1,48 @@
 /**
- * Coach Studio (استودیو مربی) — v0.1 scaffold.
+ * کمک مربی (Komak-e Morabi) — coach daily-app shell.
  *
- * First screen: the final coaching questionnaire (public/questionnaire.html)
- * rendered full-viewport in an iframe. The questionnaire is a self-contained
- * RTL Persian page: 4 trainee tracks (gym-only, gym+padel VIP, padel-only,
- * AI-only paid), medical red-flag screening, surgery-history per injury,
- * coach report output.
+ * 5 bottom tabs: پرسش‌نامه (iframe of the finalized standalone
+ * questionnaire.html), تمرین (live session logger), تغذیه (kcal + macro
+ * tanks), چک‌لیست روزانه (coach-assigned HABITS ONLY — never drugs,
+ * supplements or prescriptions), چت مربی (demo coach chat).
  *
- * The surrounding React shell carries the neon theme + button classes so
- * future screens (coach dashboard, program approvals, XP leaderboard)
- * can share the same design language.
+ * Bilingual FA (default, RTL) + EN (LTR) via LangProvider; neon theme,
+ * PadelPro button mechanics, per-coach data isolation (coach_id tenant —
+ * single demo coach «رضا گزی» for now, payment wiring deferred).
  */
+import { useState } from 'react';
+import { LangProvider, useLang } from './lib/i18n';
+import Header from './components/Header';
+import TabBar, { type TabId } from './components/TabBar';
+import QuestionnaireTab from './tabs/QuestionnaireTab';
+import WorkoutTab from './tabs/WorkoutTab';
+import NutritionTab from './tabs/NutritionTab';
+import ChecklistTab from './tabs/ChecklistTab';
+import ChatTab from './tabs/ChatTab';
+
+function Shell() {
+  const [tab, setTab] = useState<TabId>('workout');
+  const { dir } = useLang();
+
+  return (
+    <div className="app-shell" dir={dir}>
+      <Header />
+      <main key={tab} className={tab === 'questionnaire' ? 'tab-content full-bleed neon-rise' : 'tab-content neon-rise'}>
+        {tab === 'questionnaire' && <QuestionnaireTab />}
+        {tab === 'workout' && <WorkoutTab />}
+        {tab === 'nutrition' && <NutritionTab />}
+        {tab === 'checklist' && <ChecklistTab />}
+        {tab === 'chat' && <ChatTab />}
+      </main>
+      <TabBar active={tab} onChange={setTab} />
+    </div>
+  );
+}
+
 export default function App() {
   return (
-    <div className="app-shell">
-      <iframe
-        title="پرسش‌نامه هوشمند مربی"
-        src="questionnaire.html"
-        className="questionnaire-frame"
-        allowFullScreen
-      />
-    </div>
+    <LangProvider>
+      <Shell />
+    </LangProvider>
   );
 }
