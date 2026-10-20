@@ -2,7 +2,23 @@
 
 Status on 2026-10-20: **prep-only — no APK was built on this machine.**
 The web build passes, signing is wired, and the CI workflow is ready.
-What is missing locally is only the Android toolchain (see inventory below).
+
+⚠️ **Local-build blocker found 2026-10-20 (after provisioning a full
+toolchain — see inventory): this sandbox intercepts Java loopback TCP.**
+A full JDK 17 + Android SDK were downloaded to `~/workspace/tools/`
+(JDK, `android-sdk/` with platform 36 + build-tools 36.0.0 + platform-tools,
+Gradle 8.14.3, SDK licenses written, `android/local.properties` set), yet
+`gradle assembleRelease` can never get past daemon startup:
+`Could not receive a message from the daemon`. Reproduced 15/15 attempts.
+Byte-level test: a Java client connecting to a server socket on
+127.0.0.1 in the same JVM reads back byte 109 from a middlebox instead of
+the server's byte, its local address is NAT'd to the host interface, and
+the server never sees an accept — while python/curl loopback works fine.
+The Gradle daemon protocol is raw loopback TCP, so **Gradle builds are
+impossible inside this VM** (this is also why PadelPro was always built
+on GitHub Actions and only signed locally). Use Path B (CI) below; the
+provisioned toolchain stays on disk in case the sandbox networking ever
+changes. Do not re-diagnose from scratch — start from this paragraph.
 
 - Package: `ir.coachstudio.app`
 - App version in code (do not bump without Reza): `versionName "1.0"`, `versionCode 1`
@@ -14,15 +30,17 @@ What is missing locally is only the Android toolchain (see inventory below).
   `COACH_KEYSTORE_PASSWORD` and `COACH_KEY_PASSWORD`. Never commit this file,
   the keystore, or any password into the repo.
 
-## Toolchain inventory — this VM, 2026-10-20
+## Toolchain inventory — this VM, 2026-10-20 (updated after provisioning)
 
 | Tool | Present? |
 |---|---|
 | Node.js v24.20.0 / npm 10.9.4 | ✅ |
-| Gradle wrapper (`android/gradlew`, gradle-8.14.3) | ✅ present, unusable without a JDK |
-| Java / javac (`java`, `javac`, `/usr/lib/jvm/`) | ❌ not installed |
-| Android SDK (`ANDROID_HOME`, `ANDROID_SDK_ROOT`, platform-tools, build-tools) | ❌ not present |
-| `aapt` / `apkanalyzer` / `apksigner` / `keytool` | ❌ (ship with JDK/SDK above) |
+| Gradle wrapper (`android/gradlew`, gradle-8.14.3) + standalone Gradle 8.14.3 at `~/workspace/tools/gradle-8.14.3` | ✅ |
+| Java on PATH / `/usr/lib/jvm/` | ❌ nothing system-installed |
+| Temurin **JRE** 17 (pre-existing, no `javac`/`jdk.compiler`) | ✅ `~/workspace/tools/jre17/` and `~/workspace/.signing-tools/` (+ `uber-apk-signer.jar` — socket-free, works) |
+| Temurin **JDK** 17.0.20.1 (provisioned 2026-10-20) | ✅ `~/workspace/tools/jdk17/` (`javac` works) |
+| Android SDK (provisioned 2026-10-20) | ✅ `~/workspace/tools/android-sdk/` — platform android-36, build-tools 36.0.0 (`aapt`/`aapt2`/`apksigner`/`d8`), platform-tools, cmdline-tools; licenses written |
+| Gradle daemon build | ❌ **blocked by sandbox Java-loopback interception — see header** |
 
 Verified working without the toolchain:
 
@@ -33,9 +51,13 @@ npm run build      # passes (vite)
 npx cap sync android  # passes
 ```
 
-## Path A — Local build (once JDK 17 + Android SDK are installed)
+## Path A — Local build (any normal machine / if sandbox networking is fixed)
 
 Prereqs: JDK 17, Android SDK with platform 36 + build-tools, `ANDROID_HOME` set.
+On this VM the toolchain already sits at `~/workspace/tools/jdk17` and
+`~/workspace/tools/android-sdk` — set `JAVA_HOME`/`ANDROID_HOME` to those
+paths and the steps below apply verbatim; only the daemon-loopback
+blocker (header) currently stops them here.
 
 ```bash
 cd ~/workspace/coach-app
