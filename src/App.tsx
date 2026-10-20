@@ -4,7 +4,9 @@
  * Entry is the AuthGate (§18): role select → coach login/signup (with the
  * approval gate) / athlete login / new-athlete questionnaire + signup.
  * Logged-in users skip the gate; an unapproved coach sees ONLY the
- * pending-approval screen. The 5 bottom tabs: پرسش‌نامه (iframe of the
+ * pending-approval screen. An ACTIVE coach (or admin) lands on the
+ * CoachPanel — review queue + my athletes — NEVER on the athlete tabs;
+ * athletes (and the offline demo entry) get the 5 bottom tabs: پرسش‌نامه (iframe of the
  * finalized standalone questionnaire.html), تمرین (live session logger),
  * تغذیه (kcal + macro tanks), چک‌لیست روزانه (coach-assigned HABITS ONLY —
  * never drugs, supplements or prescriptions), چت مربی (demo coach chat).
@@ -22,6 +24,7 @@ import { LangProvider, useLang } from './lib/i18n';
 import { AuthProvider, useAuth } from './lib/auth';
 import Header from './components/Header';
 import AuthGate, { PendingApproval } from './components/AuthGate';
+import CoachPanel from './components/CoachPanel';
 import AthleteOnboarding from './components/AthleteOnboarding';
 import TabBar, { type TabId } from './components/TabBar';
 import QuestionnaireTab from './tabs/QuestionnaireTab';
@@ -81,7 +84,22 @@ function Root() {
       </div>
     );
   }
-  if (auth.status === 'signedIn') return <Shell />;
+  if (auth.status === 'signedIn') {
+    // Role routing (JOB 1): an active coach / admin goes to the coach
+    // panel, never the athlete questionnaire/tabs. Athletes — and the
+    // offline demo entry, which carries no coach identity — get the tabs.
+    // (A pending coach never reaches here: status stays 'pending'.)
+    const isCoach = !auth.demo && (auth.role !== null || auth.coach !== null);
+    if (isCoach) {
+      return (
+        <div className="app-shell" dir={dir}>
+          <Header />
+          <CoachPanel />
+        </div>
+      );
+    }
+    return <Shell />;
+  }
   return (
     <div className="app-shell" dir={dir}>
       <Header />

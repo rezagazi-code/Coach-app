@@ -8,7 +8,7 @@
  *
  * Column types below match the migration files EXACTLY:
  *   v1 supabase-schema.sql        — athletes, questionnaire_responses,
- *                                   programs, xp_events
+ *                                   programs, xp_events, review_queue (§8)
  *   v2 supabase-multi-coach.sql   — adds coach_id (uuid) to those tables
  *   v4 supabase-xp-scoring.sql    — meal_logs
  *   v5 supabase-training-log.sql  — workout_sessions, logged_sets,
@@ -193,6 +193,28 @@ export interface ChatMessage {
   body: string;
   read_at: string | null;
   created_at: string;
+}
+
+/**
+ * v1 review_queue (§8) — the coach approval inbox. One row per submitted
+ * program; decision NULL = still pending. flags_snapshot freezes the
+ * athlete's flags at submit time ({bmi, bmi_cat, age_band, injuries[],
+ * goal, sleep, days}). Coach-only table: athletes have NO RLS policy.
+ */
+export interface ReviewQueueItem {
+  program_id: string;
+  submitted_at: string;
+  reviewed_at: string | null;
+  decision: 'approved' | 'edited' | 'rejected' | null;
+  flags_snapshot: Record<string, unknown>;
+  coach_feedback: string;
+}
+
+/** A pending review_queue row joined with its program + athlete. */
+export interface PendingReview {
+  review: ReviewQueueItem;
+  program: Program;
+  athlete: Athlete | null;
 }
 
 /** v1 user_roles. Athletes have NO row here (§18.5: no self-escalation —
@@ -547,6 +569,101 @@ export async function joinCoach(input: {
     .single();
   if (error) throw error;
   return data as AthleteCoach;
+}
+
+// --------------------------------------------------------------------------
+// COACH CONSOLE helpers — the review queue + per-athlete coach notes.
+// Every read runs under the signed-in coach's session, so per-coach RLS
+// (v2: review_queue is scoped through programs.coach_id) does the tenant
+// isolation; nothing here takes a coach_id from the caller.
+// --------------------------------------------------------------------------
+
+/**
+ * Pending submissions for the review queue (صف بازبینی), oldest first so
+ * the coach works FIFO. Each row embeds its program and the program's
+ * athlete; the card data (track, BMI, injury flags) comes from the frozen
+ * flags_snapshot — no extra round-trips per card.
+ */
+export async function listPendingReviews(): Promise<PendingReview[]> {
+  const { data, error } = await requireClient()
+    .from('review_queue')
+    .select('*, program:programs(*, athlete:athletes(*))')
+    .is('decision', null)
+    .order('submitted_at', { ascending: true });
+  if (error) throw error;
+  const rows = (data ?? []) as Array<Record<string, unknown>>;
+  const out: PendingReview[] = [];
+  for (const row of rows) {
+    const r = row as unknown as ReviewQueueItem & {
+      program: (Program & { athlete?: Athlete | null }) | null;
+    };
+    if (!r.program) continue; // orphaned queue row — nothing reviewable
+    const { athlete, ...program } = r.program;
+    out.push({
+      review: {
+        program_id: r.program_id,
+        submitted_at: r.submitted_at,
+        reviewed_at: r.reviewed_at,
+        decision: r.decision,
+        flags_snapshot: r.flags_snapshot ?? {},
+        coach_feedback: r.coach_feedback ?? '',
+      },
+      program: program as Program,
+      athlete: athlete ?? null,
+    });
+  }
+  return out;
+}
+
+/**
+ * Record the coach's decision on a queued program. The program lifecycle
+ * mirrors it: approved → status 'approved' + approved_at stamp; rejected
+ * → back to 'draft' so the draft can be reworked and resubmitted.
+ */
+export async function decideReview(input: {
+  program_id: string;
+  decision: 'approved' | 'rejected';
+  coach_feedback?: string;
+}): Promise<void> {
+  const client = requireClient();
+  const now = new Date().toISOString();
+  const { error } = await client
+    .from('review_queue')
+    .update({
+      decision: input.decision,
+      reviewed_at: now,
+      coach_feedback: input.coach_feedback ?? '',
+    })
+    .eq('program_id', input.program_id);
+  if (error) throw error;
+  const patch =
+    input.decision === 'approved'
+      ? { status: 'approved' as ProgramStatus, approved_at: now }
+      : { status: 'draft' as ProgramStatus, approved_at: null };
+  const { error: programError } = await client
+    .from('programs')
+    .update(patch)
+    .eq('id', input.program_id);
+  if (programError) throw programError;
+}
+
+/** The athlete's newest program (any status) — carries the coach note. */
+export async function latestProgramFor(athleteId: string): Promise<Program | null> {
+  const programs = await listPrograms(athleteId);
+  return programs[0] ?? null;
+}
+
+/**
+ * Save the coach's note / body-weaknesses assessment on the athlete's
+ * program. programs.coach_notes is the field program drafting reads
+ * (together with the questionnaire) — see CoachPanel's note UI copy.
+ */
+export async function updateProgramCoachNotes(programId: string, coachNotes: string): Promise<void> {
+  const { error } = await requireClient()
+    .from('programs')
+    .update({ coach_notes: coachNotes })
+    .eq('id', programId);
+  if (error) throw error;
 }
 
 // --------------------------------------------------------------------------
