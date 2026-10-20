@@ -226,6 +226,11 @@
   .fuel-table{width:100%; border-collapse:collapse; margin-top:10px; font-size:13.5px}
   .fuel-table th{background:rgba(255,255,255,.05); padding:8px 12px; text-align:right; color:var(--cyan); border-bottom:1px solid var(--line)}
   .fuel-table td{padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.04)}
+
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{ animation:none !important; transition:none !important; }
+    html{ scroll-behavior:auto; }
+  }
 </style>
 </head>
 <body>

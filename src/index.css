@@ -870,7 +870,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tank-wave, .pr-bolt, .online-dot { animation: none; }
+  .tank-wave, .pr-bolt, .online-dot, .toast-pop, .pr-card, .auth-loading-logo, .bubble { animation: none; }
   .tank-fill, .kcal-bar-fill, .ring-progress { transition: none; }
 }
 

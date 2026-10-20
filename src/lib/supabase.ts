@@ -43,7 +43,9 @@ const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 export const isSupabaseConfigured = Boolean(url && anonKey);
 
 if (!isSupabaseConfigured) {
-  console.error(
+  // warn, not error: unconfigured is the app's supported demo mode, and an
+  // error-level log on every boot pollutes the console for every flow.
+  console.warn(
     '[supabase] Missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY. ' +
       'Create a .env file (see .env.example) — keys are NEVER hardcoded. ' +
       'The app runs in offline mode: session logs stay in the local queue.'

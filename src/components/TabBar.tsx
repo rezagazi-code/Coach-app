@@ -55,7 +55,7 @@ function Icon({ id }: { id: TabId }) {
 export default function TabBar({ active, onChange }: { active: TabId; onChange: (t: TabId) => void }) {
   const { t } = useLang();
   return (
-    <nav className="tab-bar" aria-label="tabs">
+    <nav className="tab-bar" aria-label={t('a11y.tabsNav')}>
       {TABS.map((id) => (
         <button
           key={id}

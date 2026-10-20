@@ -72,6 +72,8 @@ const fa: Dict = {
   'ch.msg1': 'روی ست آخر پرس سینه عالی بودی! امشب زود بخواب.',
   'ch.msg2': 'ممنون استاد! ست آخر رو کامل زدم.',
   'ch.reply': 'دیدم، آفرین!',
+  'ch.send': 'ارسال پیام',
+  'a11y.tabsNav': 'زبانه‌ها',
 
   'auth.tagline': 'دستیار هوشمند مربی',
   'auth.roleTitle': 'چطور وارد می‌شی؟',
@@ -230,6 +232,8 @@ const en: Dict = {
   'ch.msg1': 'You crushed the last bench set! Sleep early tonight.',
   'ch.msg2': 'Thanks coach! Finished the last set fully.',
   'ch.reply': 'Saw it, well done!',
+  'ch.send': 'Send message',
+  'a11y.tabsNav': 'Tabs',
 
   'auth.tagline': 'Smart coach assistant',
   'auth.roleTitle': 'How are you joining?',

@@ -89,7 +89,7 @@ export default function ChatTab() {
             if (e.key === 'Enter') send();
           }}
         />
-        <button type="button" className="neon-btn neon-burst chat-send" onClick={send} aria-label="send">
+        <button type="button" className="neon-btn neon-burst chat-send" onClick={send} aria-label={t('ch.send')}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
           </svg>
