@@ -158,8 +158,16 @@ export default function WorkoutTab() {
       rpe,
       is_pr: isPR,
     });
+    // Advance to the next pending set — wrap to the FIRST pending set when
+    // the logged set was the last pending one ahead (out-of-order logging).
+    // Otherwise `active` stays on the just-logged (done) set and the whole
+    // stepper/RPE/log block unmounts with sets still pending: a dead end.
+    // (`sets` here is pre-update, so the active set still reads !done —
+    // exclude it explicitly in the wrap search.)
     const nextIdx = sets.findIndex((s, i) => i > active && !s.done);
+    const wrapIdx = sets.findIndex((s, i) => i !== active && !s.done);
     if (nextIdx !== -1) setActive(nextIdx);
+    else if (wrapIdx !== -1) setActive(wrapIdx);
   };
 
   const finishWith = (fb: 'easy' | 'ok' | 'hard') => {
