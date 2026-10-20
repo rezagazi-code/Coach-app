@@ -351,7 +351,10 @@ create policy pol2_slots_self_book on coach_slots
 -- 6. athlete_xp_totals — per-coach leaderboard view (adds coach_id).
 --    security_invoker: athletes see only their own total through it.
 -- ============================================================================
-create or replace view athlete_xp_totals
+-- DROP first: CREATE OR REPLACE cannot insert coach_id mid-view (PG 42P16,
+-- hit live by Reza 2026-10-21). View has no dependents; safe to recreate.
+drop view if exists athlete_xp_totals;
+create view athlete_xp_totals
 with (security_invoker = true) as
 select
   e.athlete_id,
