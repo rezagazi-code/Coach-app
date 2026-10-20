@@ -19,6 +19,7 @@
  * the demo slug below in them.
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { Preferences } from '@capacitor/preferences';
 
 /** Demo coach identity for UI/mock data ONLY (NOT a uuid — never a DB value). */
 export const DEMO_COACH_ID = 'coach-reza-gazi';
@@ -52,9 +53,32 @@ if (!isSupabaseConfigured) {
   );
 }
 
+// Native-safe auth storage (PadelPro lesson: Supabase's default WebView
+// localStorage lost the session on EVERY APK update and users had to log
+// in from scratch; Capacitor Preferences is platform storage that
+// survives updates. On web Preferences falls back to localStorage, so
+// browser behavior is unchanged.)
+const authStorage = {
+  getItem: async (key: string): Promise<string | null> =>
+    (await Preferences.get({ key })).value ?? null,
+  setItem: async (key: string, value: string): Promise<void> => {
+    await Preferences.set({ key, value });
+  },
+  removeItem: async (key: string): Promise<void> => {
+    await Preferences.remove({ key });
+  },
+};
+
 export const supabase: SupabaseClient = createClient(
   url ?? 'https://placeholder.supabase.co',
-  anonKey ?? 'placeholder-anon-key'
+  anonKey ?? 'placeholder-anon-key',
+  {
+    auth: {
+      storage: authStorage,
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+  }
 );
 
 export class SupabaseNotConfiguredError extends Error {
@@ -712,6 +736,31 @@ const ATHLETE_REQUIRED: Partial<Record<QueueTable, boolean>> = {
   messages: true,
 };
 
+/** Deterministic UUID (v5-shaped) derived from a seed string. For writes
+ *  whose identity is naturally unique — a logged set IS (session, set
+ *  number) — so if an enqueue ever fires twice for the same logical set,
+ *  both writes carry the SAME client_uuid and the upsert collapses them
+ *  instead of minting a duplicate row (PadelPro idempotency lesson:
+ *  in-memory-only "already processed" markers are not a guard). */
+export function deterministicUuid(seed: string): string {
+  const bytes = new Array<number>(16).fill(0);
+  for (let lane = 0; lane < 4; lane++) {
+    let h = (0x811c9dc5 ^ Math.imul(lane + 1, 0x9e3779b9)) >>> 0;
+    for (let i = 0; i < seed.length; i++) {
+      h ^= (seed.charCodeAt(i) + lane) & 0xff;
+      h = Math.imul(h, 0x01000193);
+    }
+    bytes[lane * 4] = (h >>> 24) & 0xff;
+    bytes[lane * 4 + 1] = (h >>> 16) & 0xff;
+    bytes[lane * 4 + 2] = (h >>> 8) & 0xff;
+    bytes[lane * 4 + 3] = h & 0xff;
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x50; // version-5 shape
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // RFC variant
+  const hex = bytes.map((b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export function newClientUuid(): string {
   const c = globalThis.crypto;
   if (c && typeof c.randomUUID === 'function') return c.randomUUID();
@@ -802,7 +851,7 @@ export function queueSessionLog(input: {
     client_uuid: sessionId,
   });
   for (const s of input.sets) {
-    const setUuid = newClientUuid();
+    const setUuid = deterministicUuid(`${sessionId}:${s.set_number}`);
     enqueueWrite('logged_sets', {
       id: setUuid,
       session_id: sessionId,
@@ -830,7 +879,7 @@ export function enqueueLoggedSet(sessionId: string, set: {
   rpe?: number | null;
   is_pr?: boolean;
 }): string {
-  const setUuid = newClientUuid();
+  const setUuid = deterministicUuid(`${sessionId}:${set.set_number}`);
   enqueueWrite('logged_sets', {
     id: setUuid,
     session_id: sessionId,

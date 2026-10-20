@@ -72,10 +72,24 @@ function writeLocalNotes(notes: Record<string, string>) {
   }
 }
 
+// Questionnaire answers are typed by Iranian users: Persian/Arabic-Indic
+// digits and the ٫ decimal separator must normalize before Number(), or
+// Number('۲۳٫۴') is NaN and the flag silently vanishes (PadelPro lesson:
+// raw parseInt/Number on FA-digit input fails SILENTLY).
+const faDigitsToLatin = (s: string): string =>
+  s
+    .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+    .replace(/٫/g, '.')
+    .replace(/٬/g, '');
+
 // flags jsonb is untyped — narrow defensively before rendering.
 const asNum = (v: unknown): number | null => {
   if (typeof v === 'number' && Number.isFinite(v)) return v;
-  if (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v))) return Number(v);
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(faDigitsToLatin(v.trim()));
+    return Number.isFinite(n) ? n : null;
+  }
   return null;
 };
 const asStr = (v: unknown): string | null =>
