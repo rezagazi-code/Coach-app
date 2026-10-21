@@ -18,10 +18,13 @@ import {
   checkForUpdate,
   deleteUpdateFile,
   downloadUpdate,
+  errMsg,
   isNativePlatform,
   openInstaller,
+  UpdateStageError,
   verifySha256,
   type UpdateMetadata,
+  type UpdateStage,
 } from '../lib/updater';
 
 type Phase = 'checking' | 'downloading' | 'verifying' | 'installing' | 'error';
@@ -40,11 +43,19 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
   const [progress, setProgress] = useState(0);
   const [meta, setMeta] = useState<UpdateMetadata | null>(null);
   const [hashFailed, setHashFailed] = useState(false);
+  /** The last stage-tagged failure — drives the honest error state. */
+  const [stageErr, setStageErr] = useState<UpdateStageError | null>(null);
   const runningRef = useRef(false);
 
   const pass = useCallback(() => {
     sessionGatePassed = true;
     setPassed(true);
+  }, []);
+
+  /** Normalize any throwable into a stage-tagged error for the UI. */
+  const toStageError = useCallback((err: unknown, fallback: UpdateStage): UpdateStageError => {
+    if (err instanceof UpdateStageError) return err;
+    return new UpdateStageError(fallback, errMsg(err));
   }, []);
 
   const run = useCallback(async () => {
@@ -53,33 +64,48 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
     setPhase('checking');
     setProgress(0);
     setHashFailed(false);
+    setStageErr(null);
     try {
-      const found = await checkForUpdate();
+      let found: UpdateMetadata | null;
+      try {
+        found = await checkForUpdate(); // throws UpdateStageError('check', …)
+      } catch (err) {
+        throw toStageError(err, 'check');
+      }
       if (!found) {
         pass(); // up to date — dismiss immediately, no artificial delay
         return;
       }
       setMeta(found);
       setPhase('downloading');
-      const file = await downloadUpdate(found, setProgress);
+      const file = await downloadUpdate(found, setProgress); // throws UpdateStageError('download', …)
       setPhase('verifying');
-      const ok = await verifySha256(file, found.sha256);
+      let ok: boolean;
+      try {
+        ok = await verifySha256(file, found.sha256);
+      } catch (err) {
+        throw toStageError(err, 'verify');
+      }
       if (!ok) {
         // Never open an unverified installer; drop the bad file.
         await deleteUpdateFile().catch(() => undefined);
         setHashFailed(true);
-        setPhase('error');
-        return;
+        throw new UpdateStageError('verify', 'sha256 mismatch');
       }
       setPhase('installing');
-      await openInstaller(file);
+      try {
+        await openInstaller(file);
+      } catch (err) {
+        throw toStageError(err, 'installer');
+      }
       pass();
-    } catch {
+    } catch (err) {
+      setStageErr(toStageError(err, 'check'));
       setPhase('error');
     } finally {
       runningRef.current = false;
     }
-  }, [pass]);
+  }, [pass, toStageError]);
 
   useEffect(() => {
     if (!passed) void run();
@@ -89,6 +115,15 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
 
   const downloading = phase === 'downloading';
   const dashOffset = downloading ? RING_C * (1 - progress) : RING_C * 0.75;
+  /** Honest, stage-specific status: the user always sees WHICH stage failed. */
+  const stageText = (stage: UpdateStage): string =>
+    stage === 'check'
+      ? t('upd.errCheck')
+      : stage === 'download'
+        ? t('upd.errDownload')
+        : stage === 'verify'
+          ? t('upd.errVerify')
+          : t('upd.errInstaller');
   const statusText =
     phase === 'checking'
       ? t('upd.checking')
@@ -100,7 +135,9 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
             ? t('upd.installing')
             : hashFailed
               ? t('upd.hashFailed')
-              : t('upd.failed');
+              : stageErr
+                ? stageText(stageErr.stage)
+                : t('upd.failed');
 
   return (
     <div className="upd-splash" dir={dir} role="status" aria-live="polite">
@@ -136,6 +173,13 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
           {num(Math.floor(progress * 100))}
           {lang === 'fa' ? '٪' : '%'}
         </p>
+      )}
+
+      {phase === 'error' && stageErr && (
+        <details className="upd-details">
+          <summary>{t('upd.details')}</summary>
+          <p className="upd-details-body">{stageErr.message}</p>
+        </details>
       )}
 
       <div className="upd-actions">

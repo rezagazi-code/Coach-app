@@ -16,6 +16,12 @@
  *     installer opens; on mismatch the file is deleted.
  *  5. Progress comes from the native download listener — real bytes,
  *     never a fake/animated percentage.
+ *  6. The apkUrl is a GitHub 302 link — resolved to its final URL with a
+ *     plain web fetch (which follows redirects natively) BEFORE calling
+ *     downloadFile, which does not follow the redirect reliably (fixed
+ *     2026-10-21 after Reza's phone saved a redirect body instead of
+ *     the APK). Errors are stage-tagged (check/download/verify/
+ *     installer) so the UI can say WHICH stage failed.
  */
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
@@ -88,6 +94,28 @@ export async function computeSha256Hex(data: Uint8Array): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/* ------------------------------------------------------------------ *
+ * Staged errors — Reza's standing rule: the UI must always say WHICH  *
+ * stage failed, never show a silent generic box.                      *
+ * ------------------------------------------------------------------ */
+
+export type UpdateStage = 'check' | 'download' | 'verify' | 'installer';
+
+/** An updater failure tagged with the stage that produced it. */
+export class UpdateStageError extends Error {
+  readonly stage: UpdateStage;
+  constructor(stage: UpdateStage, message: string) {
+    super(message);
+    this.name = 'UpdateStageError';
+    this.stage = stage;
+  }
+}
+
+/** Human-safe message extraction from unknown throwables. */
+export function errMsg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 /** Decode one base64 chunk (each filesystem chunk is independently valid). */
 export function base64ChunkToBytes(b64: string): Uint8Array {
   const bin = atob(b64);
@@ -147,7 +175,53 @@ export async function checkForUpdate(): Promise<UpdateMetadata | null> {
       lastError = err;
     }
   }
-  throw lastError instanceof Error ? lastError : new Error('update check failed');
+  throw new UpdateStageError('check', errMsg(lastError) || 'update check failed');
+}
+
+/**
+ * Resolve the final download URL before handing it to the native layer.
+ *
+ * GitHub release download links (…/releases/download/…) answer with a 302
+ * redirect to objects.githubusercontent.com. @capacitor/filesystem's
+ * downloadFile does NOT reliably follow that redirect — live failure on
+ * 2026-10-21: the ring showed, the "download" completed with a redirect
+ * body instead of the APK, and the size gate correctly rejected it. Plain
+ * web fetch follows redirects natively, so resolve the chain here first.
+ *
+ * Strategy: HEAD with redirect:follow (cheap, no body); if HEAD is
+ * refused, fall back to GET with Range: bytes=0-0 (one byte, then drop
+ * the stream). Both are bounded by the fetch timeout.
+ */
+export async function resolveFinalUrl(url: string, timeoutMs = FETCH_TIMEOUT_MS): Promise<string> {
+  const fetchOnce = (init: RequestInit) => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    // Second guard: release the caller even if a native HTTP bridge
+    // ignores the abort signal (same pattern as fetchJsonOnce).
+    const raced = Promise.race([
+      fetch(url, { ...init, redirect: 'follow', cache: 'no-store', signal: ctrl.signal }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('redirect-resolve timeout')), timeoutMs),
+      ),
+    ]);
+    return raced.finally(() => clearTimeout(timer));
+  };
+  try {
+    const head = await fetchOnce({ method: 'HEAD' });
+    // Even a refused HEAD (405/403) is fine: with redirect:'follow' the
+    // Location chain was already walked — response.url is the final URL.
+    if (head.url && head.url !== '') return head.url;
+  } catch {
+    // fall through to the Range-GET fallback below
+  }
+  const res = await fetchOnce({ headers: { Range: 'bytes=0-0' } });
+  try {
+    await res.body?.cancel();
+  } catch {
+    // dropping the one-byte body is best-effort; the URL is what matters
+  }
+  if (!res.url) throw new Error('could not resolve redirect');
+  return res.url;
 }
 
 export interface DownloadedUpdate {
@@ -158,6 +232,10 @@ export interface DownloadedUpdate {
 /**
  * Download the APK into the app cache with REAL progress events from the
  * native filesystem listener (throttled natively to ~100ms chunks).
+ *
+ * The metadata apkUrl is a GitHub 302 link, so the final URL is resolved
+ * first (see resolveFinalUrl) — downloadFile gets a direct URL the native
+ * layer can actually fetch.
  */
 export async function downloadUpdate(
   meta: UpdateMetadata,
@@ -165,27 +243,45 @@ export async function downloadUpdate(
 ): Promise<DownloadedUpdate> {
   const path = `${UPDATE_DIR}/${UPDATE_FILE}`;
   await deleteUpdateFile().catch(() => undefined);
+  const finalUrl = await resolveFinalUrl(meta.apkUrl).catch((err) => {
+    throw new UpdateStageError('download', `could not resolve download URL: ${errMsg(err)}`);
+  });
   const handle = await Filesystem.addListener('progress', (status) => {
     // The listener also fires for any other transfer; only ours counts.
-    if (status.url === meta.apkUrl) onProgress(progressRatio(status.bytes, status.contentLength));
+    // Accept both URLs — the native layer reports whichever it was told.
+    if (status.url === finalUrl || status.url === meta.apkUrl)
+      onProgress(progressRatio(status.bytes, status.contentLength));
   });
   try {
     await Filesystem.downloadFile({
-      url: meta.apkUrl,
+      url: finalUrl,
       path,
       directory: Directory.Cache,
       progress: true,
       recursive: true,
     });
+  } catch (err) {
+    throw new UpdateStageError('download', `downloadFile failed: ${errMsg(err)}`);
   } finally {
     await handle.remove().catch(() => undefined);
   }
-  // Cheap pre-check before the authoritative hash: a truncated download
-  // must never reach the installer.
   if (meta.sizeBytes > 0) {
     const stat = await Filesystem.stat({ path, directory: Directory.Cache });
+    // Defensive early gate (before the authoritative hash): the classic
+    // failure is a redirect body saved instead of the APK (~KB vs ~MB).
+    if (stat.size < Math.min(meta.sizeBytes * 0.9, 1_000_000)) {
+      throw new UpdateStageError(
+        'download',
+        `incomplete download (likely redirect): got ${stat.size} of ${meta.sizeBytes} bytes`,
+      );
+    }
+    // Cheap pre-check before the authoritative hash: a truncated download
+    // must never reach the installer.
     if (stat.size !== meta.sizeBytes) {
-      throw new Error(`download size mismatch: got ${stat.size}, expected ${meta.sizeBytes}`);
+      throw new UpdateStageError(
+        'download',
+        `download size mismatch: got ${stat.size}, expected ${meta.sizeBytes}`,
+      );
     }
   }
   onProgress(1);

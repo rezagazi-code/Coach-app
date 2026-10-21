@@ -181,6 +181,11 @@ const fa: Dict = {
   'upd.hashFailed': 'فایل دانلودشده سالم نبود و حذف شد — می‌تونی دوباره تلاش کنی یا بدون آپدیت ادامه بدی',
   'upd.retry': 'تلاش دوباره',
   'upd.skip': 'ادامه بدون آپدیت',
+  'upd.errCheck': 'بررسی نسخه تازه ناموفق بود — اینترنت را بررسی کن',
+  'upd.errDownload': 'دانلود ناقص بود (redirect) — دوباره تلاش کن',
+  'upd.errVerify': 'فایل دانلودشده سالم نبود و حذف شد — دوباره تلاش کن',
+  'upd.errInstaller': 'نصب‌کننده باز نشد — دوباره تلاش کن',
+  'upd.details': 'جزئیات فنی',
 };
 
 const en: Dict = {
@@ -357,6 +362,11 @@ const en: Dict = {
   'upd.hashFailed': 'The downloaded file was not intact and was deleted — retry or continue without updating',
   'upd.retry': 'Retry',
   'upd.skip': 'Continue without updating',
+  'upd.errCheck': "Couldn't check for a new version — check your connection",
+  'upd.errDownload': 'Download was incomplete (redirect) — please retry',
+  'upd.errVerify': 'Downloaded file failed integrity check and was deleted — please retry',
+  'upd.errInstaller': "Couldn't open the installer — please retry",
+  'upd.details': 'Technical details',
 };
 
 const FA_DIGITS = '۰۱۲۳۴۵۶۷۸۹';

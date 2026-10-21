@@ -1329,6 +1329,9 @@
 .upd-pct { color: var(--cyan); font-size: 22px; font-weight: 800; margin: 0; font-variant-numeric: tabular-nums; }
 .upd-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; width: min(320px, 100%); }
 .upd-btn { width: 100%; }
+.upd-details { color: #8b96a8; font-size: 12px; width: min(320px, 100%); }
+.upd-details summary { cursor: pointer; }
+.upd-details-body { direction: ltr; text-align: left; font-family: monospace; font-size: 11px; word-break: break-all; background: rgba(255, 255, 255, 0.04); border-radius: 8px; padding: 8px; margin: 6px 0 0; }
 @media (prefers-reduced-motion: reduce) {
   .upd-bar-ind { animation: none; }
   .upd-bar { transition: none; }
