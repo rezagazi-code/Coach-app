@@ -287,8 +287,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAthlete(null);
         setCurrentAthleteId(null);
       } else {
-        const myAthlete = await fetchAthleteByUserId(userId);
+        let myAthlete = await fetchAthleteByUserId(userId);
         if (run !== runRef.current) return;
+        if (!myAthlete && isAthleteIdentity(next.user)) {
+          // Deferred-profile recovery (§18.1 step 6): the athlete signed up
+          // while no ACTIVE coach was seeded, so the profile insert was
+          // skipped — without this, bootstrap would leave athlete: null
+          // forever (questionnaire submissions never flush, queue writes
+          // held, re-signup just returns 'taken'). The coach may exist now:
+          // complete the profile exactly like the signup-time path, from
+          // the phone stored in the signup metadata (the name the athlete
+          // typed was never persisted, so the phone doubles as display
+          // name until they edit their profile).
+          try {
+            const coachRow = await fetchActiveCoachBySlug(DEFAULT_COACH_SLUG);
+            if (run !== runRef.current) return;
+            if (coachRow) {
+              const meta = (next.user.user_metadata ?? {}) as Record<string, unknown>;
+              const metaPhone = typeof meta.phone === 'string' ? meta.phone : '';
+              const emailDigits =
+                typeof next.user.email === 'string'
+                  ? (next.user.email.split('@')[0] ?? '').replace(/^p/i, '').replace(/\D/g, '')
+                  : '';
+              const phone = metaPhone || (emailDigits ? `+${emailDigits}` : '');
+              const healed = await createAthleteProfile({
+                user_id: userId,
+                full_name: phone || 'athlete',
+                phone,
+                coach_id: coachRow.id,
+              });
+              await joinCoach({ athlete_id: healed.id, coach_id: coachRow.id, is_primary: true });
+              myAthlete = healed;
+              console.info('[auth] deferred athlete profile completed for', userId);
+            }
+          } catch (err) {
+            console.error('[auth] deferred athlete profile healing failed', err);
+          }
+        }
         setAthlete(myAthlete);
         setCurrentAthleteId(myAthlete?.id ?? null);
         if (myAthlete) void flushQueue(); // stamp queued pre-login writes
