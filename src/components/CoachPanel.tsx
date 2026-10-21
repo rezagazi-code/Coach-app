@@ -229,6 +229,11 @@ export default function CoachPanel() {
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
   const localNotes = useRef<Record<string, string>>(readLocalNotes());
+  // Guards the openDetail async fetch: an earlier card's response must not
+  // overwrite the answers/flags of a card opened afterwards (coach taps A,
+  // goes back, taps B — A's response resolving later would show A's
+  // questionnaire answers under B's header while the coach decides).
+  const detailKeyRef = useRef<string | null>(null);
 
   const showToast = useCallback((msg: string) => {
     setToast(null);
@@ -300,11 +305,14 @@ export default function CoachPanel() {
 
   const openDetail = useCallback(async (card: ReviewCard) => {
     setDetail(card);
+    detailKeyRef.current = card.key;
     setAnswers(card.demoAnswers ?? null);
     if (!isSupabaseConfigured) return;
     setAnswersLoading(true);
     try {
       const resp = await latestQuestionnaireResponse(card.athleteId);
+      // Stale-response guard: only apply to the card still open.
+      if (detailKeyRef.current !== card.key) return;
       setAnswers(resp?.answers ?? null);
       // The response's own flags are fresher than the submit snapshot.
       if (resp && Object.keys(resp.flags).length > 0) {
@@ -312,9 +320,9 @@ export default function CoachPanel() {
       }
     } catch (err) {
       console.error('[coach-panel] answers load failed', err);
-      setAnswers(null);
+      if (detailKeyRef.current === card.key) setAnswers(null);
     }
-    setAnswersLoading(false);
+    if (detailKeyRef.current === card.key) setAnswersLoading(false);
   }, []);
 
   const decide = useCallback(
@@ -327,6 +335,7 @@ export default function CoachPanel() {
         }
         setReviews((prev) => prev.filter((r) => r.key !== detail.key));
         showToast(t(decision === 'approved' ? 'cp.approved' : 'cp.rejected'));
+        detailKeyRef.current = null;
         setDetail(null);
       } catch (err) {
         console.error('[coach-panel] decision failed', err);
@@ -445,7 +454,14 @@ export default function CoachPanel() {
     return (
       <div className="cp-scroll">
         <div className="cp-block">
-          <button type="button" className="auth-back" onClick={() => setDetail(null)}>
+          <button
+            type="button"
+            className="auth-back"
+            onClick={() => {
+              detailKeyRef.current = null;
+              setDetail(null);
+            }}
+          >
             {t('auth.back')}
           </button>
           <h1 className="auth-title">{detail.athleteName}</h1>
