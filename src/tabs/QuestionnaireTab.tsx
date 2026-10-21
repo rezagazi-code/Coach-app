@@ -46,6 +46,11 @@ export default function QuestionnaireTab() {
     const onMessage = (e: MessageEvent) => {
       const data = e.data as { type?: string; payload?: QuestionnaireSubmission } | null;
       if (!data || data.type !== 'km-questionnaire-submit' || !data.payload) return;
+      // Trust boundary: the questionnaire page is bundled and same-origin;
+      // submissions posted by a foreign window are forged and must not be
+      // persisted under the athlete's identity (they would create a program
+      // + review_queue row in the coach's queue).
+      if (e.origin !== window.location.origin) return;
       // The page already wrote the same payload to localStorage; storing
       // again here keeps the parent correct even if that write was blocked.
       storePendingSubmission(data.payload);
