@@ -158,9 +158,38 @@ jobs:
           # failed run 39513175874 despite a correct cert).
           "$APKSIGNER" verify --print-certs "$APK" | grep -q "6dd4afe44bb1e1c8b3c34a4fe07996b4aba505f52ed81b5f2d7eb6cc1d26d41c"
 
-      - name: Upload APK artifact
+      # Update metadata for the in-app self-updater (src/lib/updater.ts):
+      # latest.json describes THIS build — versionName/versionCode, the
+      # GitHub Release asset URL the APK will live at, and the APK's own
+      # sha256 + size (computed from the verified artifact above). The
+      # workflow only GENERATES it; main chat attaches both files to the
+      # GitHub Release tagged v<versionName>, and the release's
+      # releases/latest/download/latest.json URL is what the app polls.
+      - name: Generate update metadata (latest.json)
+        run: |
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          VERSION_NAME=$(node -p "require('./package.json').version")
+          VERSION_CODE=$((100 + ${{ github.run_number }}))
+          SHA256=$(sha256sum "$APK" | cut -d' ' -f1)
+          SIZE=$(stat -c%s "$APK")
+          APK_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION_NAME}/morabi-man-v${VERSION_NAME}.apk"
+          mkdir -p release-meta
+          cp "$APK" "release-meta/morabi-man-v${VERSION_NAME}.apk"
+          cat > release-meta/latest.json <<JSON
+          {
+            "versionName": "$VERSION_NAME",
+            "versionCode": $VERSION_CODE,
+            "apkUrl": "$APK_URL",
+            "sha256": "$SHA256",
+            "sizeBytes": $SIZE,
+            "notes": ""
+          }
+          JSON
+          cat release-meta/latest.json
+
+      - name: Upload release files (APK + latest.json)
         uses: actions/upload-artifact@v4
         with:
-          name: morabi-man-release-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
+          name: morabi-man-release-files
+          path: release-meta/
           if-no-files-found: error
