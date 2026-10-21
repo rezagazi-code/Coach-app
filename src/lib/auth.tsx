@@ -66,6 +66,7 @@ export type AuthStatus =
 export type AuthErrorCode =
   | 'wrong' // bad credentials
   | 'taken' // phone/email already registered
+  | 'takenSlug' // coach link slug already taken by another coach
   | 'checkEmail' // signup ok but no session yet (email confirmation unexpectedly ON)
   | 'checkPhone' // athlete signup ok but no session (confirmation ON for the synthetic-email account; no way for the athlete to complete it in v1)
   | 'busy' // still 429 after backoff
@@ -80,6 +81,37 @@ interface PendingCoachProfile {
   userId: string;
   name: string;
   slug: string;
+}
+
+/**
+ * Coach profile insert error → honest AuthErrorCode.
+ * 2026-10-21 lesson (live bug on رضا's phone): the completion insert can
+ * fail with 23505 on coaches_user_id_key when a pre-migration attempt
+ * already wrote the row (the row IS written even though the original
+ * request errored — RETURNING saw no rows). That is NOT a failure: the
+ * row exists and bootstrap can proceed. 23505 on coaches_slug_key means
+ * another coach owns the link → inline 'takenSlug'.
+ */
+function mapCoachProfileInsertError(err: unknown): AuthErrorCode {
+  const msg = (err as { code?: string; message?: string }) ?? {};
+  if (msg.code === '23505') {
+    if (msg.message && msg.message.includes('coaches_slug_key')) return 'takenSlug';
+    // user_id unique violation (or unknown 23505): likely an orphan row from
+    // a previous attempt — let the caller verify and recover.
+    return 'generic';
+  }
+  return 'generic';
+}
+
+/** Post-insert recovery: if the caller's coach row already exists (e.g. a
+ *  pre-fix attempt wrote it), return it so bootstrap can proceed instead
+ *  of failing with a generic error. */
+async function recoverExistingCoachProfile(userId: string) {
+  try {
+    return await fetchCoachByUserId(userId);
+  } catch {
+    return null;
+  }
 }
 
 function storePendingCoachProfile(p: PendingCoachProfile): void {
@@ -363,7 +395,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await createCoachProfile({ user_id: user.id, slug: input.slug, display_name: input.name.trim() });
       } catch (err) {
         console.error('[auth] coach profile insert failed', err);
-        return { ok: false, code: 'generic' };
+        // Idempotent recovery: the row may already exist from a previous
+        // attempt (pre-fix inserts wrote the row but errored on RETURNING).
+        const existing = await recoverExistingCoachProfile(user.id);
+        if (existing) {
+          await bootstrap(res.data.session);
+          return { ok: true };
+        }
+        return { ok: false, code: mapCoachProfileInsertError(err) };
       }
       await bootstrap(res.data.session);
       return { ok: true };
@@ -462,7 +501,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await createCoachProfile({ user_id: session.user.id, slug: input.slug, display_name: input.name.trim() });
       } catch (err) {
         console.error('[auth] coach profile completion failed', err);
-        return { ok: false, code: 'generic' };
+        // Idempotent recovery: the row may already exist from a previous
+        // attempt (this is exactly what happened to رضا on 2026-10-21 —
+        // the first tap wrote the row, the retry hit the unique constraint).
+        const existing = await recoverExistingCoachProfile(session.user.id);
+        if (existing) {
+          clearPendingCoachProfile();
+          await bootstrap(session);
+          return { ok: true };
+        }
+        return { ok: false, code: mapCoachProfileInsertError(err) };
       }
       clearPendingCoachProfile();
       await bootstrap(session);
@@ -523,3 +571,4 @@ export function useAuth(): AuthCtx {
 
 /** The not-configured message, shared by the gate + onboarding screens. */
 export const NOT_CONFIGURED_MESSAGE = new SupabaseNotConfiguredError().message;
+

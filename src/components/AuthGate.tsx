@@ -75,7 +75,7 @@ export default function AuthGate({ onNewAthlete }: { onNewAthlete: () => void })
 
   // coach form
   const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
+  const [slug, setSlug] = useState('reza');
   const [slugTouched, setSlugTouched] = useState(false);
   const [email, setEmail] = useState('');
   // athlete form
@@ -93,6 +93,11 @@ export default function AuthGate({ onNewAthlete }: { onNewAthlete: () => void })
         break;
       case 'busy':
         setError(t('auth.errBusy'));
+        break;
+      case 'takenSlug':
+        // Coach link taken by another coach — inline under the slug field,
+        // never the generic red box.
+        setFieldErrs((prev) => ({ ...prev, slug: t('auth.errSlugTaken') }));
         break;
       case 'checkEmail':
         setNotice(t('auth.errCheckEmail'));
@@ -370,7 +375,8 @@ export function CoachProfileCompletion() {
   const { t } = useLang();
   const auth = useAuth();
   const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
+  // Prefill the canonical coach link — editable, lowercase-latin enforced.
+  const [slug, setSlug] = useState('reza');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrs, setFieldErrs] = useState<{ name?: string; slug?: string }>({});
@@ -387,7 +393,12 @@ export function CoachProfileCompletion() {
     setError(null);
     const res = await auth.completeCoachProfile({ name, slug });
     setBusy(false);
-    if (!res.ok) setError(t('auth.errGeneric'));
+    if (!res.ok) {
+      // Honest errors: slug taken → inline under the field; anything else →
+      // the generic box (the failure is logged, never silent).
+      if (res.code === 'takenSlug') setFieldErrs({ slug: t('auth.errSlugTaken') });
+      else setError(t('auth.errGeneric'));
+    }
   };
 
   return (
