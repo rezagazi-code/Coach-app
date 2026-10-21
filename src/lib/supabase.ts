@@ -672,15 +672,12 @@ export async function decideReview(input: {
 }): Promise<void> {
   const client = requireClient();
   const now = new Date().toISOString();
-  const { error } = await client
-    .from('review_queue')
-    .update({
-      decision: input.decision,
-      reviewed_at: now,
-      coach_feedback: input.coach_feedback ?? '',
-    })
-    .eq('program_id', input.program_id);
-  if (error) throw error;
+  // Write order matters: the program row goes FIRST, the review_queue row
+  // LAST. Both writes are idempotent, so if the second write fails the card
+  // simply re-appears in the pending queue and the coach can re-decide the
+  // same way. The reverse order (queue decided first) would strand the
+  // program in 'in_review' with the decision invisible and no UI path to
+  // recover it — observed class: split-brain between the two tables.
   const patch =
     input.decision === 'approved'
       ? { status: 'approved' as ProgramStatus, approved_at: now }
@@ -690,6 +687,15 @@ export async function decideReview(input: {
     .update(patch)
     .eq('id', input.program_id);
   if (programError) throw programError;
+  const { error } = await client
+    .from('review_queue')
+    .update({
+      decision: input.decision,
+      reviewed_at: now,
+      coach_feedback: input.coach_feedback ?? '',
+    })
+    .eq('program_id', input.program_id);
+  if (error) throw error;
 }
 
 /** The athlete's newest program (any status) — carries the coach note. */

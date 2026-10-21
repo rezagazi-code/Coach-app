@@ -346,16 +346,26 @@ export default function CoachPanel() {
       // the fallback until the athlete has a program row to carry it.
       localNotes.current = { ...localNotes.current, [athleteId]: text };
       writeLocalNotes(localNotes.current);
-      if (isSupabaseConfigured && card.program) {
+      if (!isSupabaseConfigured) {
+        showToast(t('cp.noteSaved'));
+      } else {
         try {
-          await updateProgramCoachNotes(card.program.id, text);
-          showToast(t('cp.noteSaved'));
+          // Re-resolve the latest program at save time: card.program was
+          // captured when the panel loaded and may be stale — approving a
+          // pending review or an athlete resubmit in between leaves a newer
+          // program row. Saving to the stale row would hide the note from
+          // the athlete's current program and from fresh panel loads.
+          const program = (await latestProgramFor(athleteId).catch(() => null)) ?? card.program;
+          if (program) {
+            await updateProgramCoachNotes(program.id, text);
+            showToast(t('cp.noteSaved'));
+          } else {
+            showToast(t('cp.noteLocalOnly'));
+          }
         } catch (err) {
           console.error('[coach-panel] note save failed', err);
           showToast(t('cp.actionError'));
         }
-      } else {
-        showToast(t(isSupabaseConfigured ? 'cp.noteLocalOnly' : 'cp.noteSaved'));
       }
       setSavingNoteFor(null);
     },
