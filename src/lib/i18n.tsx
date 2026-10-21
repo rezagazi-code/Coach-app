@@ -171,6 +171,15 @@ const fa: Dict = {
   'cp.status.approved': 'تأییدشده',
   'cp.status.active': 'فعال',
   'cp.status.archived': 'بایگانی',
+  'upd.checking': 'در حال بررسی نسخه تازه…',
+  'upd.available': 'نسخه تازه آماده است',
+  'upd.downloading': 'در حال دانلود آپدیت…',
+  'upd.verifying': 'در حال بررسی فایل دانلودشده…',
+  'upd.installing': 'در حال باز کردن نصب‌کننده…',
+  'upd.failed': 'آپدیت انجام نشد — می‌تونی بدون آپدیت ادامه بدی',
+  'upd.hashFailed': 'فایل دانلودشده سالم نبود و حذف شد — می‌تونی دوباره تلاش کنی یا بدون آپدیت ادامه بدی',
+  'upd.retry': 'تلاش دوباره',
+  'upd.skip': 'ادامه بدون آپدیت',
 };
 
 const en: Dict = {
@@ -337,6 +346,15 @@ const en: Dict = {
   'cp.status.approved': 'Approved',
   'cp.status.active': 'Active',
   'cp.status.archived': 'Archived',
+  'upd.checking': 'Checking for a new version…',
+  'upd.available': 'A new version is ready',
+  'upd.downloading': 'Downloading update…',
+  'upd.verifying': 'Verifying the downloaded file…',
+  'upd.installing': 'Opening the installer…',
+  'upd.failed': "The update didn't complete — you can continue without updating",
+  'upd.hashFailed': 'The downloaded file was not intact and was deleted — retry or continue without updating',
+  'upd.retry': 'Retry',
+  'upd.skip': 'Continue without updating',
 };
 
 const FA_DIGITS = '۰۱۲۳۴۵۶۷۸۹';

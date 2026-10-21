@@ -22,6 +22,7 @@
 import { useState, type CSSProperties } from 'react';
 import { LangProvider, useLang } from './lib/i18n';
 import { AuthProvider, useAuth } from './lib/auth';
+import UpdateGate from './components/UpdateSplash';
 import Header from './components/Header';
 import AuthGate, { CoachProfileCompletion, PendingApproval } from './components/AuthGate';
 import CoachPanel from './components/CoachPanel';
@@ -119,9 +120,15 @@ function Root() {
 export default function App() {
   return (
     <LangProvider>
-      <AuthProvider>
-        <Root />
-      </AuthProvider>
+      {/* Boot order: the updater gate runs first on native (fail-open —
+          it can never trap the user) and is a pass-through on web/demo.
+          Session persistence (Capacitor Preferences) lives in the auth
+          bootstrap below and is untouched by the gate. */}
+      <UpdateGate>
+        <AuthProvider>
+          <Root />
+        </AuthProvider>
+      </UpdateGate>
     </LangProvider>
   );
 }

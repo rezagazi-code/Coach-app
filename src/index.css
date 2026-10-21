@@ -1284,3 +1284,52 @@
 .cp-note:focus { border-color: rgba(212, 255, 0, 0.55); }
 .cp-save { align-self: flex-start; padding: 11px 24px; font-size: 14px; }
 .auth-field-error { color: #ff9db8; font-size: 12px; font-weight: 700; line-height: 1.6; }
+
+/* ============================================================
+   In-app updater splash (components/UpdateSplash.tsx) — logo
+   centered in an SVG ring; the ring spins while checking and
+   fills with real download progress (stroke-dashoffset).
+   ============================================================ */
+.upd-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: var(--bg);
+  padding: 24px;
+  text-align: center;
+}
+.upd-ring-wrap { position: relative; width: 190px; height: 190px; flex: 0 0 auto; }
+.upd-ring-svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+.upd-track { fill: none; stroke: rgba(255, 255, 255, 0.08); stroke-width: 7; }
+.upd-bar {
+  fill: none;
+  stroke: url(#upd-grad);
+  stroke-width: 7;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.15s linear;
+  filter: drop-shadow(0 0 6px rgba(212, 255, 0, 0.45));
+}
+.upd-bar-ind { animation: upd-spin 1.1s linear infinite; transform-origin: center; }
+@keyframes upd-spin { to { transform: rotate(360deg); } }
+.upd-logo {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 128px;
+  height: 128px;
+  border-radius: 30px;
+}
+.upd-available { color: var(--volt); font-weight: 700; font-size: 15px; margin: 0; }
+.upd-status { color: #aeb9c9; font-size: 14px; line-height: 1.9; margin: 0; max-width: 320px; }
+.upd-pct { color: var(--cyan); font-size: 22px; font-weight: 800; margin: 0; font-variant-numeric: tabular-nums; }
+.upd-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; width: min(320px, 100%); }
+.upd-btn { width: 100%; }
+@media (prefers-reduced-motion: reduce) {
+  .upd-bar-ind { animation: none; }
+  .upd-bar { transition: none; }
+}
