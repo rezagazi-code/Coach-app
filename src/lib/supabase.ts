@@ -877,7 +877,16 @@ export async function persistPendingSubmission(input: {
   const payload = readPendingSubmission();
   if (!payload) return 'none';
   if (!isSupabaseConfigured) return 'stored';
-  enqueueSubmission(payload, input.athleteId, input.coachId);
+  // Dedup: an earlier call may already have queued this submission — the
+  // payload stays stored until the queue drains, and persistPendingSubmission
+  // runs on every bootstrap. Re-enqueueing would mint duplicate entries,
+  // including a programs entry baked with status 'in_review' that could
+  // flush AFTER a coach decision and regress it (status + approved_at
+  // overwritten, queue row decided → card gone from the pending list with
+  // no recovery path). Entries already queued are simply flushed.
+  if (submissionQueueDepth(payload) === 0) {
+    enqueueSubmission(payload, input.athleteId, input.coachId);
+  }
   await flushQueue();
   if (submissionQueueDepth(payload) === 0) {
     clearPendingSubmission();
