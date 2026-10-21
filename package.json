@@ -1,9 +1,12 @@
 {
   "dependencies": {
     "@capacitor/android": "^8.5.3",
+    "@capacitor/app": "^8.1.2",
     "@capacitor/cli": "^8.5.3",
     "@capacitor/core": "^8.5.3",
+    "@capacitor/filesystem": "^8.1.5",
     "@capacitor/preferences": "^8.0.1",
+    "@capawesome-team/capacitor-file-opener": "^8.0.6",
     "@supabase/supabase-js": "^2.118.0",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.1",
@@ -29,7 +32,7 @@
     "preview": "vite preview"
   },
   "type": "module",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "engines": {
     "node": "22.x"
   }

@@ -38,4 +38,9 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- In-app self-update: lets the package installer replace this app
+         with a newer APK the app itself downloaded (src/lib/updater.ts).
+         Android still asks the user to grant "install unknown apps" for
+         this app once, inside the installer flow. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 </manifest>
