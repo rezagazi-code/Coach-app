@@ -1336,6 +1336,18 @@ export async function flushQueue(): Promise<{ flushed: number; pending: number }
     const pushedIds = new Set<string>();
     let flushed = 0;
     for (const entry of snapshot) {
+      // Provenance hold (completes the b5282cd intent): an entry bound at
+      // enqueue time to an athlete who is NOT the current session's athlete
+      // waits for its owner — it never flushes under a different identity
+      // (or anonymously after logout). RLS ties each row to the auth.uid
+      // of its athlete, so such a flush would 403 every time, burn one of
+      // the 25 retries per attempt, and silently drop the other athlete's
+      // workouts/meals/XP. 'online'/'visibilitychange' fire flushes often,
+      // so without this hold the retries would burn out fast.
+      if (entry.enqueuedBy != null && entry.enqueuedBy !== currentAthlete) {
+        keepById.set(entry.id, entry); // owner not logged in — wait
+        continue;
+      }
       const needsAthlete = ATHLETE_REQUIRED[entry.table] === true;
       // Only entries that CARRY an athlete_id can be blocked by a missing
       // one (review_queue entries reference their program instead).
