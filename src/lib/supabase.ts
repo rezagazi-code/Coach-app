@@ -932,6 +932,12 @@ export interface QueueEntry {
   data: Record<string, unknown>;
   attempts: number;
   queuedAt: string;
+  /**
+   * Athlete identity known at enqueue time (may be null when logged out).
+   * Binds provenance: flush-time stamping must never attribute an entry
+   * to an athlete who wasn't the owner when it was created.
+   */
+  enqueuedBy?: string | null;
 }
 
 const QUEUE_KEY = 'km.offlineQueue.v1';
@@ -1010,12 +1016,22 @@ export function queueLength(): number {
 }
 
 export function enqueueWrite(table: QueueTable, data: Record<string, unknown>): QueueEntry {
+  const enqueuedBy = getCurrentAthleteId();
+  // Bind provenance at enqueue time, not flush time: a null athlete_id on
+  // an entry created while an identity is known belongs to THAT identity.
+  // Stamping it at flush with whoever logs in next would let a different
+  // athlete on the same device absorb the previous owner's entries.
+  const bound: Record<string, unknown> =
+    'athlete_id' in data && (data.athlete_id === null || data.athlete_id === undefined)
+      ? { ...data, athlete_id: enqueuedBy }
+      : data;
   const entry: QueueEntry = {
     id: newClientUuid(),
     table,
-    data,
+    data: bound,
     attempts: 0,
     queuedAt: new Date().toISOString(),
+    enqueuedBy,
   };
   const queue = readQueue();
   queue.push(entry);
@@ -1293,12 +1309,18 @@ export async function flushQueue(): Promise<{ flushed: number; pending: number }
     const client = requireClient();
     const snapshot = readQueue();
     // Entries logged before login carry athlete_id=null — stamp the
-    // identity known now so they can finally sync.
+    // identity known now so they can finally sync. Provenance guard: only
+    // entries with unknown provenance (logged out) or bound to the current
+    // athlete may be stamped. An entry bound to a DIFFERENT athlete stays
+    // queued until they log back in — stamping it here would write one
+    // athlete's workouts/meals/XP into another athlete's record.
     const currentAthlete = getCurrentAthleteId();
     if (currentAthlete) {
       for (const e of snapshot) {
         if (!e.data.athlete_id && 'athlete_id' in e.data) {
-          e.data = { ...e.data, athlete_id: currentAthlete };
+          if (!e.enqueuedBy || e.enqueuedBy === currentAthlete) {
+            e.data = { ...e.data, athlete_id: currentAthlete };
+          }
         }
       }
     }
