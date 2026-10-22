@@ -417,6 +417,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const user = res.data.user;
       if (!user) return { ok: false, code: 'generic' };
+      // GoTrue obfuscates a duplicate signup: a user object with NO
+      // identities and no error means "already registered" — same guard as
+      // signUpAthlete. Without it a duplicate coach email is misreported as
+      // a pending email confirmation.
+      if (Array.isArray(user.identities) && user.identities.length === 0) {
+        return { ok: false, code: 'taken' };
+      }
       if (!res.data.session) {
         // §18 expects "Confirm email" OFF, so a session should exist. If the
         // dashboard has it ON, the profile write must wait for first login —

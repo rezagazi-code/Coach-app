@@ -53,8 +53,10 @@ export default function QuestionnaireTab() {
       if (e.origin !== window.location.origin) return;
       // The page already wrote the same payload to localStorage; storing
       // again here keeps the parent correct even if that write was blocked.
-      storePendingSubmission(data.payload);
+      // Stamp the current athlete (if any) so a later login by someone
+      // else can never flush this payload under their identity.
       const athlete = athleteRef.current;
+      storePendingSubmission(data.payload, athlete?.id ?? null);
       if (athlete?.coachId) {
         void persistPendingSubmission({ athleteId: athlete.id, coachId: athlete.coachId }).catch(
           (err) => console.error('[questionnaire] submit persist failed (queued)', err)

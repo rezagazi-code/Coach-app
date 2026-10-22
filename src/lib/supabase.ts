@@ -747,6 +747,14 @@ export const PENDING_SUBMISSION_KEY = 'km.pendingSubmission.v1';
 export interface QuestionnaireSubmission {
   /** Minted at questionnaire start; the idempotency key for the whole submit. */
   clientUuid: string;
+  /**
+   * Athlete logged in when the payload was stored (null = anonymous —
+   * the onboarding funnel, or written by questionnaire.html which cannot
+   * stamp). persistPendingSubmission refuses to flush a payload stamped
+   * for athlete X under athlete Y (shared-device / logout-login race),
+   * so one athlete's answers can never become another's program.
+   */
+  athleteId?: string | null;
   track: Track;
   answers: Record<string, unknown>;
   /** Coach-card snapshot: bmi, bmi_cat, age_band, injuries[], surgeries[], goal, sleep_hours, days_per_week. */
@@ -763,9 +771,15 @@ export function programClientUuid(submissionUuid: string): string {
   return deterministicUuid(`${submissionUuid}:program`);
 }
 
-export function storePendingSubmission(payload: QuestionnaireSubmission): void {
+export function storePendingSubmission(
+  payload: QuestionnaireSubmission,
+  athleteId: string | null,
+): void {
   try {
-    localStorage.setItem(PENDING_SUBMISSION_KEY, JSON.stringify(payload));
+    localStorage.setItem(
+      PENDING_SUBMISSION_KEY,
+      JSON.stringify({ ...payload, athleteId: athleteId ?? null }),
+    );
   } catch {
     /* storage unavailable — the in-session postMessage path still delivers */
   }
@@ -877,6 +891,17 @@ export async function persistPendingSubmission(input: {
   const payload = readPendingSubmission();
   if (!payload) return 'none';
   if (!isSupabaseConfigured) return 'stored';
+  // Identity guard: a payload stored while athlete X was logged in must
+  // never flush under athlete Y (e.g. X submitted offline, logged out, Y
+  // logged in on the same device — Y's bootstrap would otherwise claim
+  // X's answers as their own program). Drop it rather than contaminate;
+  // X can re-submit. Anonymous payloads (onboarding funnel) flush under
+  // the first claimant as before.
+  const stamped = payload.athleteId ?? null;
+  if (stamped && stamped !== input.athleteId) {
+    clearPendingSubmission();
+    return 'none';
+  }
   // Dedup: an earlier call may already have queued this submission — the
   // payload stays stored until the queue drains, and persistPendingSubmission
   // runs on every bootstrap. Re-enqueueing would mint duplicate entries,
