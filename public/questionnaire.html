@@ -1518,17 +1518,14 @@ function collectSubmission(d){
   });
   answers.painMap = d.painMap;
   answers.painZones = painZones;
-  // New structured answers (explicit keys; checkbox groups are not in the radio-names loop above)
-  answers.waistCm = $("#fWaist").value;
-  answers.chestCm = $("#fChest").value;
-  answers.armCm = $("#fArm").value;
-  answers.thighCm = $("#fThigh").value;
+  // New structured answers (explicit keys; checkbox groups are not in the radio-names loop above).
+  // NOTE: measurement/PR inputs are already captured by the generic id-loop
+  // above as fWaist/fChest/fArm/fThigh/fPRBench/fPRSquat/fPRDead — do NOT add
+  // waistCm-style aliases here; the coach panel renders answers generically
+  // and duplicate keys show every measurement twice.
   answers.fatZones = $$('input[name="fatZone"]:checked').map(c => c.value);
   answers.weakMuscles = $$('input[name="weakMuscle"]:checked').map(c => c.value);
   answers.equipment = $$('input[name="equipment"]:checked').map(c => c.value);
-  answers.prBench = $("#fPRBench").value;
-  answers.prSquat = $("#fPRSquat").value;
-  answers.prDead = $("#fPRDead").value;
   answers.trainDays = radioVal("trainDays");
   answers.smoke = radioVal("smoke");
   const injuries = [], surgeries = [];
