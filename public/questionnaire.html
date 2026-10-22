@@ -156,13 +156,13 @@
   .readiness-circle{
     width:70px; height:70px; border-radius:50%; border:4px solid var(--volt);
     display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:900;
-    box-shadow:0 0 20px rgba(212,255,0,.4); font-family:monospace; color:#fff;
+    box-shadow:0 0 20px rgba(212,255,0,.4); color:#fff;
   }
   .readiness-meta b{display:block; font-size:16px; color:var(--txt)}
   .readiness-meta span{font-size:12.5px; color:var(--muted)}
 
   /* Flags & Cards */
-  .flag{display:flex; gap:12px; align-items:flex-start; padding:13px 16px; border-radius:12px; margin-bottom:10px; font-size:14.5px}
+  .flag{display:flex; gap:12px; align-items:flex-start; padding:13px 16px; border-radius:12px; margin-bottom:10px; font-size:14px; line-height:1.8}
   .flag .ic{font-weight:900; font-size:18px; line-height:1.4}
   .flag.red{background:rgba(255,0,85,.10); border:1px solid rgba(255,0,85,.45)}
   .flag.red .ic{color:var(--danger)}
@@ -187,14 +187,28 @@
   .session{border:1px solid var(--line); border-radius:14px; overflow:hidden; margin-bottom:14px; background:var(--panel2)}
   .session-head{padding:13px 16px; background:rgba(212,255,0,.07); border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap}
   .session-head b{font-size:16px}
-  .session-head span{font-size:12.5px; color:var(--cyan); font-family:monospace}
+  .session-head span{font-size:12.5px; color:var(--cyan)}
   table.ex{width:100%; border-collapse:collapse; font-size:14.5px; table-layout:fixed}
-  table.ex td{padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.05); vertical-align:top; overflow-wrap:anywhere; word-break:break-word}
+  table.ex td{padding:12px 14px; border-bottom:1px solid rgba(255,255,255,.05); vertical-align:top; overflow-wrap:break-word}
   table.ex tr:last-child td{border-bottom:0}
-  table.ex td.sr{white-space:normal; color:var(--cyan); font-weight:700; width:118px; font-family:monospace}
+  /* Exercise name: the prominent line — all names align on the same edge */
+  .ex-name{display:block; font-size:15px; font-weight:800; color:var(--txt); line-height:1.6}
+  .ex-note{display:block; font-size:12.5px; color:var(--muted); margin-top:4px; line-height:1.7}
+  /* Demo-video pill: chic cyan outline, sits under the exercise name+note */
+  .ex-video{display:inline-flex; align-items:center; gap:6px; margin-top:9px; padding:5px 13px;
+    border:1px solid rgba(0,240,255,.45); border-radius:99px; color:var(--cyan);
+    font-size:12px; font-weight:700; text-decoration:none; background:rgba(0,240,255,.06)}
+  .ex-video:active{transform:scale(.96)}
+  /* Sets/reps: secondary — anchored to the outer edge, wraps at word boundaries, never clips */
+  table.ex td.sr{color:var(--cyan); font-weight:600; font-size:13px; width:118px; white-space:normal; overflow-wrap:break-word; text-align:end}
+  .sr-sets{display:block; line-height:1.7}
+  .sr-sub{display:block; font-size:11.5px; font-weight:400; color:var(--muted); margin-top:3px; line-height:1.6}
   @media (max-width:420px){
     table.ex td{padding:10px 10px; font-size:13.5px}
-    table.ex td.sr{width:102px; font-size:12.5px}
+    .ex-name{font-size:14px}
+    table.ex td.sr{width:104px; font-size:12.5px}
+    .card{padding:16px}
+    .dot{font-size:11.5px; padding:6px 6px}
   }
 
   .tag{display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:99px; margin-inline-start:6px; vertical-align:middle}
@@ -220,16 +234,15 @@
   .pm-detail .pm-surg-note{display:none; margin-top:8px}
   .pm-detail .pm-surg-note.show{display:block}
 
-  .ex-note{display:block; font-size:12.5px; color:var(--muted); margin-top:3px}
   ul.tips{margin:8px 0 0; padding-inline-start:20px}
   ul.tips li{margin-bottom:6px; font-size:14px}
   .actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:20px}
   .hidden{display:none !important}
 
   /* In-match Fueling Blueprint */
-  .fuel-table{width:100%; border-collapse:collapse; margin-top:10px; font-size:13.5px}
-  .fuel-table th{background:rgba(255,255,255,.05); padding:8px 12px; text-align:right; color:var(--cyan); border-bottom:1px solid var(--line)}
-  .fuel-table td{padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.04)}
+  .fuel-table{width:100%; border-collapse:collapse; margin-top:10px; font-size:13.5px; table-layout:fixed}
+  .fuel-table th{background:rgba(255,255,255,.05); padding:8px 12px; text-align:start; color:var(--cyan); border-bottom:1px solid var(--line); overflow-wrap:break-word}
+  .fuel-table td{padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.04); overflow-wrap:break-word; vertical-align:top}
 
   @media (prefers-reduced-motion: reduce){
     *, *::before, *::after{ animation:none !important; transition:none !important; }
@@ -1207,18 +1220,18 @@ $$("[data-prev]").forEach(b => b.addEventListener("click", () => showStep(curIdx
    EXERCISE ENGINE
 ================================================================ */
 const EX_DB = {
-  squat:     { name:"اسکوات با وزنه (تکنیک‌محور)", sets:"۳ ست × ۸–۱۰ تکرار کنترل‌شده", note:"زانوها در راستای پنجه؛ عمق تا موازات ران", nameEn:"Weighted squat (technique-first)", setsEn:"3 sets × 8–10 controlled reps", noteEn:"Knees track over toes; depth to parallel" },
-  deadlift:  { name:"ددلیفت رومانیایی", sets:"۳ ست × ۸–۱۰ تکرار", note:"کمر صاف، حرکت از مفصل ران", nameEn:"Romanian deadlift", setsEn:"3 sets × 8–10 reps", noteEn:"Flat back, hinge from the hips" },
-  bench:     { name:"پرس سینه دمبل", sets:"۳ ست × ۸–۱۲ تکرار", note:"کتف‌ها عقب و پایین؛ آرنج ۴۵ درجه", nameEn:"Dumbbell bench press", setsEn:"3 sets × 8–12 reps", noteEn:"Shoulders back and down; elbows at 45°" },
-  row:       { name:"زیربغل سیم‌کش / بارفیکس کمکی", sets:"۳ ست × ۸–۱۲ تکرار", note:"انقباض ۱ ثانیه‌ای بین دو کتف", nameEn:"Cable row / assisted pull-up", setsEn:"3 sets × 8–12 reps", noteEn:"Squeeze 1s between the shoulder blades" },
-  ohp:       { name:"پرس سرشانه دمبل نشسته", sets:"۳ ست × ۸–۱۰ تکرار", note:"کمر به صندلی چسبیده؛ قوس نده", nameEn:"Seated dumbbell shoulder press", setsEn:"3 sets × 8–10 reps", noteEn:"Back glued to the bench; don't arch" },
-  lunge:     { name:"لانج قدم‌زنی", sets:"۳ ست × ۱۰ قدم هر پا", note:"زانوی جلو از پنجه جلوتر نرود", nameEn:"Walking lunge", setsEn:"3 sets × 10 steps per leg", noteEn:"Front knee must not pass the toes" },
-  plank:     { name:"پلانک", sets:"۳ ست × ۳۰–۴۵ ثانیه", note:"بدن یک خط مستقیم؛ باسن بالا نرود", nameEn:"Plank", setsEn:"3 sets × 30–45 seconds", noteEn:"Body in one straight line; hips don't rise" },
-  facepull:  { name:"فیس‌پول با طناب", sets:"۳ ست × ۱۲–۱۵ تکرار", note:"چرخش خارجی آرنج در انتها", nameEn:"Rope face pull", setsEn:"3 sets × 12–15 reps", noteEn:"External rotation at the end" },
-  rotCable:  { name:"وودچاپ کابل مورب", sets:"۳ ست × ۱۰ تکرار هر سمت", note:"چرخش از تنه، نه از دست", nameEn:"Diagonal cable wood-chop", setsEn:"3 sets × 10 reps per side", noteEn:"Rotate from the trunk, not the arms", tag:"padel" },
-  bulgarian: { name:"اسپلیت اسکوات بلغاری", sets:"۳ ست × ۸–۱۰ تکرار هر پا", note:"پاشنه پای جلو محکم به زمین", nameEn:"Bulgarian split squat", setsEn:"3 sets × 8–10 reps per leg", noteEn:"Front heel planted firmly", tag:"padel" },
-  wristArmor:{ name:"تقویت مچ (ایزومتریک)", sets:"۳ ست × ۲۰ ثانیه", note:"مچ صاف و بدون لرزش", nameEn:"Wrist strengthening (isometric)", setsEn:"3 sets × 20 seconds", noteEn:"Wrist straight, no shaking", tag:"prev" },
-  mobility:  { name:"روتین موبیلیتی خانگی (۱۰–۱۵ دقیقه)", sets:"روزانه", note:"شانه، لگن، مچ پا؛ بدون وزنه", nameEn:"Home mobility routine (10–15 min)", setsEn:"Daily", noteEn:"Shoulders, hips, ankles; no weights" }
+  squat:     { name:"اسکوات با وزنه (تکنیک‌محور)", sets:"۳ ست × ۸–۱۰ تکرار کنترل‌شده", note:"زانوها در راستای پنجه؛ عمق تا موازات ران", nameEn:"Weighted squat (technique-first)", setsEn:"3 sets × 8–10 controlled reps", noteEn:"Knees track over toes; depth to parallel", video:"https://musclewiki.com/exercise/barbell-squat" },
+  deadlift:  { name:"ددلیفت رومانیایی", sets:"۳ ست × ۸–۱۰ تکرار", note:"کمر صاف، حرکت از مفصل ران", nameEn:"Romanian deadlift", setsEn:"3 sets × 8–10 reps", noteEn:"Flat back, hinge from the hips", video:"https://musclewiki.com/exercise/romanian-deadlift" },
+  bench:     { name:"پرس سینه دمبل", sets:"۳ ست × ۸–۱۲ تکرار", note:"کتف‌ها عقب و پایین؛ آرنج ۴۵ درجه", nameEn:"Dumbbell bench press", setsEn:"3 sets × 8–12 reps", noteEn:"Shoulders back and down; elbows at 45°", video:"https://musclewiki.com/exercise/dumbbell-bench-press" },
+  row:       { name:"زیربغل سیم‌کش / بارفیکس کمکی", sets:"۳ ست × ۸–۱۲ تکرار", note:"انقباض ۱ ثانیه‌ای بین دو کتف", nameEn:"Cable row / assisted pull-up", setsEn:"3 sets × 8–12 reps", noteEn:"Squeeze 1s between the shoulder blades", video:"" },
+  ohp:       { name:"پرس سرشانه دمبل نشسته", sets:"۳ ست × ۸–۱۰ تکرار", note:"کمر به صندلی چسبیده؛ قوس نده", nameEn:"Seated dumbbell shoulder press", setsEn:"3 sets × 8–10 reps", noteEn:"Back glued to the bench; don't arch", video:"https://musclewiki.com/exercise/dumbbell-seated-overhead-press" },
+  lunge:     { name:"لانج قدم‌زنی", sets:"۳ ست × ۱۰ قدم هر پا", note:"زانوی جلو از پنجه جلوتر نرود", nameEn:"Walking lunge", setsEn:"3 sets × 10 steps per leg", noteEn:"Front knee must not pass the toes", video:"" },
+  plank:     { name:"پلانک", sets:"۳ ست × ۳۰–۴۵ ثانیه", note:"بدن یک خط مستقیم؛ باسن بالا نرود", nameEn:"Plank", setsEn:"3 sets × 30–45 seconds", noteEn:"Body in one straight line; hips don't rise", video:"https://musclewiki.com/exercise/plank" },
+  facepull:  { name:"فیس‌پول با طناب", sets:"۳ ست × ۱۲–۱۵ تکرار", note:"چرخش خارجی آرنج در انتها", nameEn:"Rope face pull", setsEn:"3 sets × 12–15 reps", noteEn:"External rotation at the end", video:"" },
+  rotCable:  { name:"وودچاپ کابل مورب", sets:"۳ ست × ۱۰ تکرار هر سمت", note:"چرخش از تنه، نه از دست", nameEn:"Diagonal cable wood-chop", setsEn:"3 sets × 10 reps per side", noteEn:"Rotate from the trunk, not the arms", tag:"padel", video:"" },
+  bulgarian: { name:"اسپلیت اسکوات بلغاری", sets:"۳ ست × ۸–۱۰ تکرار هر پا", note:"پاشنه پای جلو محکم به زمین", nameEn:"Bulgarian split squat", setsEn:"3 sets × 8–10 reps per leg", noteEn:"Front heel planted firmly", tag:"padel", video:"https://musclewiki.com/exercise/bulgarian-split-squat" },
+  wristArmor:{ name:"تقویت مچ (ایزومتریک)", sets:"۳ ست × ۲۰ ثانیه", note:"مچ صاف و بدون لرزش", nameEn:"Wrist strengthening (isometric)", setsEn:"3 sets × 20 seconds", noteEn:"Wrist straight, no shaking", tag:"prev", video:"" },
+  mobility:  { name:"روتین موبیلیتی خانگی (۱۰–۱۵ دقیقه)", sets:"روزانه", note:"شانه، لگن، مچ پا؛ بدون وزنه", nameEn:"Home mobility routine (10–15 min)", setsEn:"Daily", noteEn:"Shoulders, hips, ankles; no weights", video:"" }
 };
 
 const GOAL_TXT = { padel:"آمادگی پدل", fatloss:"چربی‌سوزی", muscle:"حجم عضلانی", strength:"قدرت پایه", health:"سلامت عمومی" };
@@ -1290,12 +1303,19 @@ function calculateProfile(){
 
 function exRow(e, conservative){
   let sets = EN() ? e.setsEn : e.sets;
-  if(conservative) sets = sets.replace(/^(۳ ست|3 sets)/, EN() ? "2–3 sets" : "۲–۳ ست") + tx(" · تکنیک اول", " · technique first");
-  return '<tr><td>' + (EN() ? e.nameEn : e.name) +
+  let sub = "";
+  if(conservative){
+    sets = sets.replace(/^(۳ ست|3 sets)/, EN() ? "2–3 sets" : "۲–۳ ست");
+    // Technique qualifier gets its own muted line instead of being jammed
+    // into the sets cell (it used to clip on narrow screens).
+    sub = '<span class="sr-sub">' + tx("تکنیک اول", "technique first") + "</span>";
+  }
+  return '<tr><td><span class="ex-name">' + (EN() ? e.nameEn : e.name) +
     (e.tag === "padel" ? '<span class="tag padel">' + tx("پدل","Padel") + '</span>' : "") +
     (e.tag === "prev" ? '<span class="tag prev">' + tx("پیشگیری","Prevention") + '</span>' : "") +
-    '<span class="ex-note">' + (EN() ? e.noteEn : e.note) + "</span></td>" +
-    '<td class="sr">' + sets + "</td></tr>";
+    '</span><span class="ex-note">' + (EN() ? e.noteEn : e.note) + "</span>" +
+    (e.video ? '<a class="ex-video" href="' + e.video + '" target="_blank" rel="noopener">▶ ' + tx("دیدن حرکت","Watch demo") + "</a>" : "") + "</td>" +
+    '<td class="sr"><span class="sr-sets">' + sets + "</span>" + sub + "</td></tr>";
 }
 
 function flagsHtml(d){
