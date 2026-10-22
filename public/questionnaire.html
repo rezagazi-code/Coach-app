@@ -969,6 +969,19 @@ function applyLang(l, rerender){
 window.addEventListener("message", e => {
   if(e.data && e.data.type === "km-set-lang") applyLang(e.data.lang, true);
 });
+/* Demo-video links when embedded in the app shell (iframe): the Android
+ * WebView drops target=_blank taps (Capacitor's BridgeWebChromeClient has
+ * no onCreateWindow), so a tapped «دیدن حرکت» pill would silently do
+ * nothing in the installed app. Route the URL to the parent instead — the
+ * app shell opens it via @capacitor/browser. Standalone in a real
+ * browser, keep the native target=_blank behaviour. */
+document.addEventListener("click", e => {
+  const a = e.target && e.target.closest ? e.target.closest("a.ex-video") : null;
+  if(!a) return;
+  if(window.self === window.top) return; /* standalone — native _blank */
+  e.preventDefault();
+  try{ window.parent.postMessage({ type:"km-open-url", url:a.href }, location.origin); }catch(_){}
+});
 applyLang(LANG, false);
 </script>
 

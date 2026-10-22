@@ -14,6 +14,8 @@
  *  onboarding funnel) the stored payload is flushed by the auth layer
  *  right after the profile rows exist. */
 import { useEffect, useRef } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { Browser } from '@capacitor/browser';
 import { useLang } from '../lib/i18n';
 import { useAuth } from '../lib/auth';
 import {
@@ -44,7 +46,24 @@ export default function QuestionnaireTab() {
 
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
-      const data = e.data as { type?: string; payload?: QuestionnaireSubmission } | null;
+      const data = e.data as { type?: string; payload?: QuestionnaireSubmission; url?: string } | null;
+      // Demo-video links: the questionnaire iframe routes target=_blank taps
+      // here because the Android WebView silently drops them (Capacitor has
+      // no onCreateWindow). Open in the system browser via @capacitor/browser.
+      if (data && data.type === 'km-open-url') {
+        if (e.origin !== window.location.origin) return;
+        const url = typeof data.url === 'string' ? data.url : '';
+        // Allowlist: only the bundled MuscleWiki demo-video links may open.
+        if (!/^https:\/\/musclewiki\.com\//.test(url)) return;
+        if (Capacitor.isNativePlatform()) {
+          void Browser.open({ url }).catch((err) =>
+            console.error('[questionnaire] browser open failed', err)
+          );
+        } else {
+          window.open(url, '_blank', 'noopener');
+        }
+        return;
+      }
       if (!data || data.type !== 'km-questionnaire-submit' || !data.payload) return;
       // Trust boundary: the questionnaire page is bundled and same-origin;
       // submissions posted by a foreign window are forged and must not be
