@@ -908,7 +908,9 @@
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  padding: 20px 16px calc(28px + env(safe-area-inset-bottom, 0px));
+  /* 2026-10-22: top safe-area — entry/login/signup/onboarding buttons
+     were rendering under the Android status bar (untappable). */
+  padding: calc(20px + env(safe-area-inset-top, 0px)) 16px calc(28px + env(safe-area-inset-bottom, 0px));
 }
 .auth-version {
   margin-top: 22px;
