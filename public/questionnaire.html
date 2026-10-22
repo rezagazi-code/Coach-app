@@ -1133,6 +1133,9 @@ function validateKey(key){
       if(!$("#injuryZone").value) miss("محل آسیب", "injury location");
       if(!radioVal("injurySurgery")) miss("سابقه جراحی", "surgery history");
     }
+    // Deeper training profile (v1.5): both starred — must not be skippable.
+    if(!radioVal("trainDays")) miss("روز تمرین فعلی", "current training days");
+    if(!radioVal("smoke")) miss("دخانیات", "smoking");
     errId = "err3";
   }
   if(key === "vip"){
