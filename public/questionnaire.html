@@ -188,10 +188,14 @@
   .session-head{padding:13px 16px; background:rgba(212,255,0,.07); border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap}
   .session-head b{font-size:16px}
   .session-head span{font-size:12.5px; color:var(--cyan); font-family:monospace}
-  table.ex{width:100%; border-collapse:collapse; font-size:14.5px}
-  table.ex td{padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.05); vertical-align:top}
+  table.ex{width:100%; border-collapse:collapse; font-size:14.5px; table-layout:fixed}
+  table.ex td{padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.05); vertical-align:top; overflow-wrap:anywhere; word-break:break-word}
   table.ex tr:last-child td{border-bottom:0}
-  table.ex td.sr{white-space:nowrap; color:var(--cyan); font-weight:700; width:150px; font-family:monospace}
+  table.ex td.sr{white-space:normal; color:var(--cyan); font-weight:700; width:118px; font-family:monospace}
+  @media (max-width:420px){
+    table.ex td{padding:10px 10px; font-size:13.5px}
+    table.ex td.sr{width:102px; font-size:12.5px}
+  }
 
   .tag{display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:99px; margin-inline-start:6px; vertical-align:middle}
   .tag.padel{background:rgba(212,255,0,.15); color:var(--volt); border:1px solid rgba(212,255,0,.35)}
@@ -317,6 +321,49 @@
         </div>
       </section>
 
+      <!-- STEP 1b: MEASUREMENTS (gym/vip/aionly only) -->
+      <section class="step" data-key="measure">
+        <div class="card">
+          <fieldset>
+            <legend>اندازه‌ها و توزیع چربی</legend>
+            <p class="step-sub">همه موارد این بخش اختیاری است؛ هر چه را داری وارد کن تا برآورد دقیق‌تر شود.</p>
+            <div class="grid">
+              <div class="field">
+                <label for="fWaist">دور کمر (سانتی‌متر) <span class="hint">(اختیاری)</span></label>
+                <input type="number" id="fWaist" min="40" max="150" placeholder="مثلاً: ۸۵" />
+              </div>
+              <div class="field">
+                <label for="fChest">دور سینه (سانتی‌متر) <span class="hint">(اختیاری)</span></label>
+                <input type="number" id="fChest" min="60" max="160" placeholder="مثلاً: ۱۰۲" />
+              </div>
+              <div class="field">
+                <label for="fArm">دور بازو (سانتی‌متر) <span class="hint">(اختیاری)</span></label>
+                <input type="number" id="fArm" min="20" max="70" placeholder="مثلاً: ۳۴" />
+              </div>
+              <div class="field">
+                <label for="fThigh">دور ران (سانتی‌متر) <span class="hint">(اختیاری)</span></label>
+                <input type="number" id="fThigh" min="30" max="100" placeholder="مثلاً: ۵۸" />
+              </div>
+            </div>
+            <div class="field" style="margin-top:16px">
+              <label>کجای بدنت بیشتر چربی داره؟ <span class="hint">(اختیاری — چند گزینه می‌توانی بزنی)</span></label>
+              <div class="choices cols2">
+                <label class="choice"><input type="checkbox" name="fatZone" value="belly" /><span class="box">شکم و پهلو</span></label>
+                <label class="choice"><input type="checkbox" name="fatZone" value="hips" /><span class="box">باسن و ران</span></label>
+                <label class="choice"><input type="checkbox" name="fatZone" value="chest" /><span class="box">سینه</span></label>
+                <label class="choice"><input type="checkbox" name="fatZone" value="arms" /><span class="box">بازوها</span></label>
+                <label class="choice"><input type="checkbox" name="fatZone" value="back" /><span class="box">کمر و پشت</span></label>
+              </div>
+            </div>
+            <div class="bmi-live" id="whtrLive">
+              نسبت دور کمر به قد: <b id="whtrVal">—</b>
+            </div>
+            <div class="err" id="errMeasure">لطفاً مقادیر اندازه را در بازه معتبر وارد کنید.</div>
+          </fieldset>
+          <div class="nav"><button type="button" class="btn btn-ghost" data-prev>→ برگشت</button><button type="button" class="btn btn-volt" data-next>قدم بعد ←</button></div>
+        </div>
+      </section>
+
       <!-- STEP 2: GOAL -->
       <section class="step" data-key="goal">
         <div class="card">
@@ -324,7 +371,7 @@
             <legend>هدف اصلی شما در این دوره</legend>
             <p class="step-sub">برنامه تمرینی و راهنمای تغذیه بر مبنای این هدف تنظیم می‌شود:</p>
             <div class="choices">
-              <label class="choice"><input type="radio" name="goal" value="padel" /><span class="box">آمادگی برای پدل<small>قدرت چرخشی، چابکی و پیشگیری از آسیب شانه و آرنج</small></span></label>
+              <label class="choice" id="goalPadelChoice"><input type="radio" name="goal" value="padel" /><span class="box">آمادگی برای پدل<small>قدرت چرخشی، چابکی و پیشگیری از آسیب شانه و آرنج</small></span></label>
               <label class="choice"><input type="radio" name="goal" value="fatloss" /><span class="box">کاهش وزن و چربی‌سوزی<small>کسری کالری هوشمند بدون افت توان عضلانی</small></span></label>
               <label class="choice"><input type="radio" name="goal" value="muscle" /><span class="box">افزایش حجم عضلانی<small>تمرکز روی فرم‌دهی و افزایش توده عضلانی</small></span></label>
               <label class="choice"><input type="radio" name="goal" value="strength" /><span class="box">افزایش قدرت پایه<small>تمرکز روی الگوهای حرکتی اصلی</small></span></label>
@@ -344,10 +391,11 @@
             <p class="step-sub">برای جلوگیری از آسیب، حرکات پرخطر به طور خودکار با جایگزین‌های امن تعویض می‌شوند.</p>
             <div class="field">
               <label>سطح سابقه تمرین با وزنه *</label>
-              <div class="choices">
+              <div class="choices cols2">
                 <label class="choice"><input type="radio" name="level" value="beginner" /><span class="box">تازه‌کار (کمتر از ۶ ماه)</span></label>
-                <label class="choice"><input type="radio" name="level" value="intermediate" /><span class="box">متوسط (۶ ماه تا ۲ سال)</span></label>
-                <label class="choice"><input type="radio" name="level" value="advanced" /><span class="box">پیشرفته (بیش از ۲ سال تمرین منظم)</span></label>
+                <label class="choice"><input type="radio" name="level" value="lt_1y" /><span class="box">کمتر از ۱ سال</span></label>
+                <label class="choice"><input type="radio" name="level" value="y1_3" /><span class="box">۱ تا ۳ سال</span></label>
+                <label class="choice"><input type="radio" name="level" value="gt_3y" /><span class="box">بیشتر از ۳ سال</span></label>
               </div>
             </div>
             <div class="field" style="margin-top:16px">
@@ -381,6 +429,55 @@
                   <label class="choice"><input type="radio" name="injurySurgery" value="yes" /><span class="box">بله، جراحی شده</span></label>
                   <label class="choice"><input type="radio" name="injurySurgery" value="no" /><span class="box">خیر</span></label>
                 </div>
+              </div>
+            </div>
+            <div class="field" style="margin-top:16px">
+              <label>الان هفته‌ای چند روز تمرین می‌کنی؟ *</label>
+              <div class="choices" style="grid-template-columns:repeat(4,1fr)">
+                <label class="choice" style="justify-content:center"><input type="radio" name="trainDays" value="0" /><span class="box">۰</span></label>
+                <label class="choice" style="justify-content:center"><input type="radio" name="trainDays" value="1" /><span class="box">۱</span></label>
+                <label class="choice" style="justify-content:center"><input type="radio" name="trainDays" value="2" /><span class="box">۲</span></label>
+                <label class="choice" style="justify-content:center"><input type="radio" name="trainDays" value="3" /><span class="box">۳</span></label>
+                <label class="choice" style="justify-content:center"><input type="radio" name="trainDays" value="4" /><span class="box">۴</span></label>
+                <label class="choice" style="justify-content:center"><input type="radio" name="trainDays" value="5" /><span class="box">۵</span></label>
+                <label class="choice" style="justify-content:center"><input type="radio" name="trainDays" value="6" /><span class="box">۶</span></label>
+                <label class="choice" style="justify-content:center"><input type="radio" name="trainDays" value="7" /><span class="box">۷</span></label>
+              </div>
+            </div>
+            <div class="field" style="margin-top:16px">
+              <label>رکوردهای تقریبی‌ت <span class="hint">(اختیاری — کیلوگرم)</span></label>
+              <div class="grid">
+                <div class="field">
+                  <label for="fPRBench">پرس سینه</label>
+                  <input type="number" id="fPRBench" min="20" max="400" placeholder="مثلاً: ۱۰۰" />
+                </div>
+                <div class="field">
+                  <label for="fPRSquat">اسکوات</label>
+                  <input type="number" id="fPRSquat" min="20" max="400" placeholder="مثلاً: ۱۲۰" />
+                </div>
+                <div class="field">
+                  <label for="fPRDead">ددلیفت</label>
+                  <input type="number" id="fPRDead" min="20" max="400" placeholder="مثلاً: ۱۴۰" />
+                </div>
+              </div>
+            </div>
+            <div class="field" style="margin-top:16px">
+              <label>ضعیف‌ترین عضله‌ت کدومه؟ <span class="hint">(اختیاری — چند گزینه می‌توانی بزنی)</span></label>
+              <div class="choices cols2">
+                <label class="choice"><input type="checkbox" name="weakMuscle" value="chest" /><span class="box">سینه</span></label>
+                <label class="choice"><input type="checkbox" name="weakMuscle" value="back" /><span class="box">پشت</span></label>
+                <label class="choice"><input type="checkbox" name="weakMuscle" value="legs" /><span class="box">پا</span></label>
+                <label class="choice"><input type="checkbox" name="weakMuscle" value="shoulders" /><span class="box">سرشانه</span></label>
+                <label class="choice"><input type="checkbox" name="weakMuscle" value="arms" /><span class="box">بازو</span></label>
+                <label class="choice"><input type="checkbox" name="weakMuscle" value="abs" /><span class="box">شکم و پهلو</span></label>
+              </div>
+            </div>
+            <div class="field" style="margin-top:16px">
+              <label>سیگار یا قلیان؟ *</label>
+              <div class="choices">
+                <label class="choice"><input type="radio" name="smoke" value="no" /><span class="box">نه</span></label>
+                <label class="choice"><input type="radio" name="smoke" value="sometimes" /><span class="box">گاهی</span></label>
+                <label class="choice"><input type="radio" name="smoke" value="daily" /><span class="box">روزانه</span></label>
               </div>
             </div>
             <div class="field" style="margin-top:16px">
@@ -459,44 +556,6 @@
         </div>
       </section>
 
-      <!-- STEP: BASIC PADEL (program-only track — no deep VIP section) -->
-      <section class="step" data-key="padelbasic">
-        <div class="card">
-          <fieldset>
-            <legend>پدل (پایه)</legend>
-            <p class="step-sub">فقط برای هماهنگی کلی برنامه؛ بخش تخصصی ندارد.</p>
-            <div class="field">
-              <label>پدل هم بازی می‌کنی؟ *</label>
-              <div class="choices cols2">
-                <label class="choice"><input type="radio" name="pbPlay" value="yes" /><span class="box">بله</span></label>
-                <label class="choice"><input type="radio" name="pbPlay" value="no" /><span class="box">خیر</span></label>
-              </div>
-            </div>
-            <div class="cond" id="pbBox">
-              <div class="field" style="margin-top:12px">
-                <label>سطح بازی *</label>
-                <div class="choices">
-                  <label class="choice"><input type="radio" name="pbLevel" value="beginner" /><span class="box">مبتدی</span></label>
-                  <label class="choice"><input type="radio" name="pbLevel" value="intermediate" /><span class="box">متوسط</span></label>
-                  <label class="choice"><input type="radio" name="pbLevel" value="advanced" /><span class="box">پیشرفته</span></label>
-                </div>
-              </div>
-              <div class="field" style="margin-top:12px">
-                <label>تعداد جلسات پدل در هفته * <span class="hint">(هر جلسه ۶۰ دقیقه)</span></label>
-                <div class="choices cols2">
-                  <label class="choice"><input type="radio" name="pbSessions" value="1" /><span class="box">۱ جلسه</span></label>
-                  <label class="choice"><input type="radio" name="pbSessions" value="2" /><span class="box">۲ جلسه</span></label>
-                  <label class="choice"><input type="radio" name="pbSessions" value="3" /><span class="box">۳ جلسه</span></label>
-                  <label class="choice"><input type="radio" name="pbSessions" value="4" /><span class="box">۴ جلسه یا بیشتر</span></label>
-                </div>
-              </div>
-            </div>
-            <div class="err" id="errPb">لطفاً وضعیت پدل را مشخص کنید.</div>
-          </fieldset>
-          <div class="nav"><button type="button" class="btn btn-ghost" data-prev>→ برگشت</button><button type="button" class="btn btn-volt" data-next>قدم بعد ←</button></div>
-        </div>
-      </section>
-
       <!-- STEP: RECOVERY -->
       <section class="step" data-key="recovery">
         <div class="card">
@@ -537,10 +596,15 @@
               </div>
             </div>
             <div class="field" style="margin-top:16px">
-              <label>تجهیزات در دسترس *</label>
-              <div class="choices">
-                <label class="choice"><input type="radio" name="equipment" value="gym" /><span class="box">باشگاه بدنسازی کامل</span></label>
-                <label class="choice"><input type="radio" name="equipment" value="home" /><span class="box">دمبل و کش خانگی</span></label>
+              <label>تجهیزات در دسترس * <span class="hint">(حداقل یک گزینه)</span></label>
+              <div class="choices cols2">
+                <label class="choice"><input type="checkbox" name="equipment" value="barbell" /><span class="box">هالتر</span></label>
+                <label class="choice"><input type="checkbox" name="equipment" value="dumbbell" /><span class="box">دمبل</span></label>
+                <label class="choice"><input type="checkbox" name="equipment" value="cable" /><span class="box">دستگاه سیم‌کش</span></label>
+                <label class="choice"><input type="checkbox" name="equipment" value="pullup" /><span class="box">میله بارفیکس</span></label>
+                <label class="choice"><input type="checkbox" name="equipment" value="band" /><span class="box">کش</span></label>
+                <label class="choice"><input type="checkbox" name="equipment" value="kettlebell" /><span class="box">کتل‌بل</span></label>
+                <label class="choice"><input type="checkbox" name="equipment" value="bodyweight" /><span class="box">فقط وزن بدن</span></label>
               </div>
             </div>
             <div class="err" id="errRec">لطفاً خواب، روزهای تمرین، مدت جلسه و تجهیزات را مشخص نمایید.</div>
@@ -746,20 +810,7 @@ const EN_TEXT = {
   "۴ جلسه یا بیشتر (مسابقه‌ای)": "4+ sessions (competitive)",
   "نقشه درد — اگر حین/بعد بازی دردی حس می‌کنی، کجا و کِی؟": "Pain map — if you feel pain during/after play, where and when?",
   "لطفاً تمام گزینه‌های ستاره‌دار این بخش را کامل کنید.": "Please complete all starred options in this section.",
-  "پدل (پایه)": "Padel (basic)",
-  "فقط برای هماهنگی کلی برنامه؛ بخش تخصصی ندارد.": "Only for overall program coordination; no specialized section.",
-  "پدل هم بازی می‌کنی؟ *": "Do you also play padel? *",
   "بله": "Yes",
-  "سطح بازی *": "Playing level *",
-  "مبتدی": "Beginner",
-  "متوسط": "Intermediate",
-  "پیشرفته": "Advanced",
-  "تعداد جلسات پدل در هفته *": "Padel sessions per week *",
-  "۱ جلسه": "1 session",
-  "۲ جلسه": "2 sessions",
-  "۳ جلسه": "3 sessions",
-  "۴ جلسه یا بیشتر": "4+ sessions",
-  "لطفاً وضعیت پدل را مشخص کنید.": "Please set your padel status.",
   "ریکاوری، خواب و تجهیزات": "Recovery, sleep & equipment",
   "برای تنظیم حجم تمرین هفتگی و شدت برنامه.": "To set your weekly training volume and program intensity.",
   "میانگین خواب شبانه (ساعت) *": "Average nightly sleep (hours) *",
@@ -775,9 +826,72 @@ const EN_TEXT = {
   "۷۵ دقیقه": "75 min",
   "۹۰ دقیقه": "90 min",
   "تجهیزات در دسترس *": "Available equipment *",
-  "باشگاه بدنسازی کامل": "Full gym",
-  "دمبل و کش خانگی": "Home dumbbells & bands",
+  "(حداقل یک گزینه)": "(at least one)",
+  "هالتر": "Barbell",
+  "دمبل": "Dumbbell",
+  "دستگاه سیم‌کش": "Cable machine",
+  "میله بارفیکس": "Pull-up bar",
+  "کش": "Resistance bands",
+  "کتل‌بل": "Kettlebell",
+  "فقط وزن بدن": "Bodyweight only",
   "لطفاً خواب، روزهای تمرین، مدت جلسه و تجهیزات را مشخص نمایید.": "Please set sleep, training days, session length and equipment.",
+  "اندازه‌ها و توزیع چربی": "Measurements & fat distribution",
+  "همه موارد این بخش اختیاری است؛ هر چه را داری وارد کن تا برآورد دقیق‌تر شود.": "Everything in this section is optional; enter what you have for a more accurate estimate.",
+  "دور کمر (سانتی‌متر)": "Waist (cm)",
+  "دور سینه (سانتی‌متر)": "Chest (cm)",
+  "دور بازو (سانتی‌متر)": "Arm (cm)",
+  "دور ران (سانتی‌متر)": "Thigh (cm)",
+  "مثلاً: ۸۵": "e.g. 85",
+  "مثلاً: ۱۰۲": "e.g. 102",
+  "مثلاً: ۳۴": "e.g. 34",
+  "مثلاً: ۵۸": "e.g. 58",
+  "کجای بدنت بیشتر چربی داره؟": "Where do you carry the most fat?",
+  "(اختیاری — چند گزینه می‌توانی بزنی)": "(optional — you can pick several)",
+  "شکم و پهلو": "Belly & flanks",
+  "باسن و ران": "Hips & thighs",
+  "سینه": "Chest",
+  "بازوها": "Arms",
+  "کمر و پشت": "Lower back & back",
+  "نسبت دور کمر به قد:": "Waist-to-height ratio:",
+  "لطفاً مقادیر اندازه را در بازه معتبر وارد کنید.": "Please enter measurements within a valid range.",
+  "اندازه‌ها": "Measurements",
+  "کمتر از ۱ سال": "Under 1 year",
+  "۱ تا ۳ سال": "1–3 years",
+  "بیشتر از ۳ سال": "3+ years",
+  "الان هفته‌ای چند روز تمرین می‌کنی؟ *": "How many days per week do you currently train? *",
+  "۰": "0",
+  "۱": "1",
+  "۲": "2",
+  "۳": "3",
+  "۴": "4",
+  "۵": "5",
+  "۶": "6",
+  "۷": "7",
+  "رکوردهای تقریبی‌ت": "Your approximate PRs",
+  "(اختیاری — کیلوگرم)": "(optional — kg)",
+  "پرس سینه": "Bench press",
+  "اسکوات": "Squat",
+  "ددلیفت": "Deadlift",
+  "مثلاً: ۱۰۰": "e.g. 100",
+  "مثلاً: ۱۲۰": "e.g. 120",
+  "مثلاً: ۱۴۰": "e.g. 140",
+  "ضعیف‌ترین عضله‌ت کدومه؟": "Which is your weakest muscle?",
+  "پشت": "Back",
+  "پا": "Legs",
+  "سرشانه": "Shoulders",
+  "بازو": "Arm",
+  "سیگار یا قلیان؟ *": "Cigarettes or hookah? *",
+  "نه": "No",
+  "گاهی": "Sometimes",
+  "روزانه": "Daily",
+  "ضعیف‌ترین عضله": "Weakest muscle",
+  "رکوردها": "PRs",
+  "تجهیزات": "Equipment",
+  "دخانیات": "Smoking",
+  "روز تمرین فعلی": "Current training days",
+  "روز در هفته": "days per week",
+  "پروفایل تمرینی": "Training profile",
+  "تجمع چربی: ": "Fat zones: ",
   "ساخت برنامه ✓": "Build my program ✓",
   "غربالگری ایمنی (اجباری برای برنامه بدون مربی)": "Safety screening (required for the no-coach program)",
   "اگر پاسخ هر کدام «بله» باشد، برنامه‌ای صادر نمی‌شود و ابتدا باید به پزشک مراجعه کنید:": "If any answer is “yes”, no program is issued and you must see a doctor first:",
@@ -881,14 +995,22 @@ function updateBmiLive(){
 $("#fHeight").addEventListener("input", updateBmiLive);
 $("#fWeight").addEventListener("input", updateBmiLive);
 
+/* Waist-to-height live note (measurements step) */
+function updateWhtrLive(){
+  const h = parseNum($("#fHeight").value), wa = parseNum($("#fWaist").value);
+  const box = $("#whtrLive");
+  if(box && h >= 110 && h <= 230 && wa >= 40 && wa <= 150){
+    $("#whtrVal").textContent = faNum((wa/h).toFixed(2));
+    box.classList.add("show");
+  } else if(box) box.classList.remove("show");
+}
+document.getElementById("fWaist").addEventListener("input", updateWhtrLive);
+document.getElementById("fHeight").addEventListener("input", updateWhtrLive);
+
 /* Injury conditionals */
 $$('input[name="injury"]').forEach(r => r.addEventListener("change", () => {
   $("#injuryBox").classList.toggle("show", radioVal("injury") === "yes");
 }));
-$$('input[name="pbPlay"]').forEach(r => r.addEventListener("change", () => {
-  $("#pbBox").classList.toggle("show", radioVal("pbPlay") === "yes");
-}));
-
 /* Pain map */
 const PAIN_ZONES = [
   { k:"shoulder", fa:"شانه", en:"Shoulder" },
@@ -947,10 +1069,10 @@ function readPainMap(id){
 
 /* Wizard navigation */
 const PATHS = {
-  gym:   { steps:["path","body","goal","health","recovery"], names:["مسیر","مشخصات","هدف","سلامت","ریکاوری"], namesEn:["Track","Body","Goal","Health","Recovery"] },
-  vip:   { steps:["path","body","goal","health","vip","recovery"], names:["مسیر","مشخصات","هدف","سلامت","تخصصی پدل","ریکاوری"], namesEn:["Track","Body","Goal","Health","Padel analysis","Recovery"] },
+  gym:   { steps:["path","body","measure","goal","health","recovery"], names:["مسیر","مشخصات","اندازه‌ها","هدف","سلامت","ریکاوری"], namesEn:["Track","Body","Measurements","Goal","Health","Recovery"] },
+  vip:   { steps:["path","body","measure","goal","health","vip","recovery"], names:["مسیر","مشخصات","اندازه‌ها","هدف","سلامت","تخصصی پدل","ریکاوری"], namesEn:["Track","Body","Measurements","Goal","Health","Padel analysis","Recovery"] },
   padel: { steps:["path","body","health","vip"], names:["مسیر","مشخصات","سلامت","آنالیز پدل"], namesEn:["Track","Body","Health","Padel analysis"] },
-  aionly:{ steps:["path","body","goal","health","redflag","padelbasic","recovery"], names:["مسیر","مشخصات","هدف","سلامت","ایمنی","پدل","ریکاوری"], namesEn:["Track","Body","Goal","Health","Safety","Padel","Recovery"] }
+  aionly:{ steps:["path","body","measure","goal","health","redflag","recovery"], names:["مسیر","مشخصات","اندازه‌ها","هدف","سلامت","ایمنی","ریکاوری"], namesEn:["Track","Body","Measurements","Goal","Health","Safety","Recovery"] }
 };
 let curPath = "gym", curIdx = 0;
 function pathDef(){ return PATHS[curPath]; }
@@ -977,6 +1099,13 @@ function showStep(idx){
   const pct = Math.round((curIdx+1)/def.steps.length*100);
   $("#stepPct").textContent = faNum(pct) + tx("٪","%");
   $("#barFill").style.width = pct + "%";
+  // aionly has no padel context: the padel-specific goal choice makes no sense there.
+  const gp = document.getElementById("goalPadelChoice");
+  if(gp){
+    const hide = curPath === "aionly";
+    gp.style.display = hide ? "none" : "";
+    if(hide){ const c = gp.querySelector('input:checked'); if(c) c.checked = false; }
+  }
   window.scrollTo({ top:0, behavior:"smooth" });
 }
 
@@ -1014,14 +1143,14 @@ function validateKey(key){
     if(!radioVal("vipSessions")) miss("جلسات پدل هفتگی", "weekly padel sessions");
     errId = "errVip";
   }
-  if(key === "padelbasic"){
-    const p = radioVal("pbPlay");
-    if(!p) miss("وضعیت پدل", "padel status");
-    if(p === "yes"){
-      if(!radioVal("pbLevel")) miss("سطح بازی", "playing level");
-      if(!radioVal("pbSessions")) miss("جلسات پدل", "padel sessions");
+  if(key === "measure"){
+    // All optional — only sanity-check filled values.
+    const m = [["fWaist",40,150],["fChest",60,160],["fArm",20,70],["fThigh",30,100]];
+    for(const [id,lo,hi] of m){
+      const v = $("#"+id).value.trim();
+      if(v !== "" && !(parseNum(v) >= lo && parseNum(v) <= hi)) miss("اندازه‌ها", "measurements");
     }
-    errId = "errPb";
+    errId = "errMeasure";
   }
   if(key === "recovery"){
     const sl = parseNum($("#fSleep").value);
@@ -1090,8 +1219,20 @@ const EX_DB = {
 
 const GOAL_TXT = { padel:"آمادگی پدل", fatloss:"چربی‌سوزی", muscle:"حجم عضلانی", strength:"قدرت پایه", health:"سلامت عمومی" };
 const GOAL_TXT_EN = { padel:"Padel readiness", fatloss:"Fat loss", muscle:"Muscle gain", strength:"Base strength", health:"General health" };
-const LEVEL_TXT = { beginner:"تازه‌کار", intermediate:"متوسط", advanced:"پیشرفته" };
-const LEVEL_TXT_EN = { beginner:"Beginner", intermediate:"Intermediate", advanced:"Advanced" };
+const LEVEL_TXT = { beginner:"تازه‌کار", lt_1y:"کمتر از ۱ سال", y1_3:"۱ تا ۳ سال", gt_3y:"بیشتر از ۳ سال" };
+const LEVEL_TXT_EN = { beginner:"Beginner", lt_1y:"Under 1 year", y1_3:"1–3 years", gt_3y:"3+ years" };
+const FATZONE_TXT = { belly:"شکم و پهلو", hips:"باسن و ران", chest:"سینه", arms:"بازوها", back:"کمر و پشت" };
+const FATZONE_TXT_EN = { belly:"Belly & flanks", hips:"Hips & thighs", chest:"Chest", arms:"Arms", back:"Lower back & back" };
+const WEAKMUSCLE_TXT = { chest:"سینه", back:"پشت", legs:"پا", shoulders:"سرشانه", arms:"بازو", abs:"شکم و پهلو" };
+const WEAKMUSCLE_TXT_EN = { chest:"Chest", back:"Back", legs:"Legs", shoulders:"Shoulders", arms:"Arms", abs:"Belly & flanks" };
+const EQUIP_TXT = { barbell:"هالتر", dumbbell:"دمبل", cable:"دستگاه سیم‌کش", pullup:"میله بارفیکس", band:"کش", kettlebell:"کتل‌بل", bodyweight:"فقط وزن بدن" };
+const EQUIP_TXT_EN = { barbell:"Barbell", dumbbell:"Dumbbell", cable:"Cable machine", pullup:"Pull-up bar", band:"Resistance bands", kettlebell:"Kettlebell", bodyweight:"Bodyweight only" };
+const SMOKE_TXT = { no:"نه", sometimes:"گاهی", daily:"روزانه" };
+const SMOKE_TXT_EN = { no:"No", sometimes:"Occasionally", daily:"Daily" };
+const fatzoneLabel = k => (EN() ? FATZONE_TXT_EN : FATZONE_TXT)[k] || k;
+const weakMuscleLabel = k => (EN() ? WEAKMUSCLE_TXT_EN : WEAKMUSCLE_TXT)[k] || k;
+const equipLabel = k => (EN() ? EQUIP_TXT_EN : EQUIP_TXT)[k] || k;
+const smokeLabel = k => (EN() ? SMOKE_TXT_EN : SMOKE_TXT)[k] || k;
 
 function calculateProfile(){
   const h = parseNum($("#fHeight").value), w = parseNum($("#fWeight").value), age = parseNum($("#fAge").value);
@@ -1128,7 +1269,18 @@ function calculateProfile(){
     // red flags
     rf: { chest: radioVal("rfChest"), faint: radioVal("rfFaint"), cond: radioVal("rfCond"), doc: radioVal("rfDoc") },
     watch: radioVal("watch"),
-    equipment: radioVal("equipment")
+    equipment: $$('input[name="equipment"]:checked').map(c => c.value),
+    trainDays: radioVal("trainDays"),
+    smoke: radioVal("smoke"),
+    prBench: parseNum($("#fPRBench").value) || null,
+    prSquat: parseNum($("#fPRSquat").value) || null,
+    prDead: parseNum($("#fPRDead").value) || null,
+    weakMuscles: $$('input[name="weakMuscle"]:checked').map(c => c.value),
+    waistCm: parseNum($("#fWaist").value) || null,
+    chestCm: parseNum($("#fChest").value) || null,
+    armCm: parseNum($("#fArm").value) || null,
+    thighCm: parseNum($("#fThigh").value) || null,
+    fatZones: $$('input[name="fatZone"]:checked').map(c => c.value)
   };
 }
 
@@ -1250,6 +1402,32 @@ function renderResults(d){
 
   /* --- coach view (hidden for AI-only) --- */
   if(!isAI){
+    // Measurements block (optional fields — show only what was filled)
+    const mParts = [];
+    if(d.waistCm) mParts.push(tx("دور کمر","Waist") + ": " + faNum(d.waistCm) + " cm");
+    if(d.chestCm) mParts.push(tx("دور سینه","Chest") + ": " + faNum(d.chestCm) + " cm");
+    if(d.armCm) mParts.push(tx("دور بازو","Arm") + ": " + faNum(d.armCm) + " cm");
+    if(d.thighCm) mParts.push(tx("دور ران","Thigh") + ": " + faNum(d.thighCm) + " cm");
+    const measureBlock =
+      (mParts.length || d.fatZones.length)
+        ? "<h3>" + tx("اندازه‌ها","Measurements") + "</h3>" +
+          (mParts.length ? '<p style="font-size:14px">' + mParts.join(" · ") + "</p>" : "") +
+          (d.fatZones.length ? '<p style="font-size:14px">' + tx("تجمع چربی: ","Fat zones: ") + d.fatZones.map(fatzoneLabel).join(tx("، ",", ")) + "</p>" : "")
+        : "";
+    // Training-depth block
+    const tParts = [];
+    if(d.trainDays !== null && d.trainDays !== undefined) tParts.push(tx("روز تمرین فعلی","Current training days") + ": " + faNum(d.trainDays) + " " + tx("روز در هفته","days per week"));
+    if(d.smoke) tParts.push(tx("دخانیات","Smoking") + ": " + smokeLabel(d.smoke));
+    if(d.weakMuscles.length) tParts.push(tx("ضعیف‌ترین عضله","Weakest muscle") + ": " + d.weakMuscles.map(weakMuscleLabel).join(tx("، ",", ")));
+    const prParts = [];
+    if(d.prBench) prParts.push(tx("پرس سینه","Bench press") + " " + faNum(d.prBench));
+    if(d.prSquat) prParts.push(tx("اسکوات","Squat") + " " + faNum(d.prSquat));
+    if(d.prDead) prParts.push(tx("ددلیفت","Deadlift") + " " + faNum(d.prDead));
+    if(prParts.length) tParts.push(tx("رکوردها","PRs") + " (kg): " + prParts.join(" · "));
+    if(d.equipment.length) tParts.push(tx("تجهیزات","Equipment") + ": " + d.equipment.map(equipLabel).join(tx("، ",", ")));
+    const trainBlock = tParts.length
+      ? "<h3>" + tx("پروفایل تمرینی","Training profile") + "</h3>" + '<ul class="tips">' + tParts.map(t => "<li>" + t + "</li>").join("") + "</ul>"
+      : "";
     $("#coachView").innerHTML =
       '<div class="card" style="border-color:rgba(0,240,255,.35)">' +
       '<h2>' + tx("گزارش مربی","Coach report") + '</h2><p class="step-sub">' + tx("این برنامه جهت بررسی و تأیید نهایی شما آماده است.","This program is ready for your final review and approval.") + '</p>' +
@@ -1258,6 +1436,7 @@ function renderResults(d){
       (d.painMap.length
         ? '<ul class="tips">' + d.painMap.map(p => "<li><b>" + esc(p.zone) + "</b> · " + esc(p.time) + " · " + tx("جراحی: ","Surgery: ") + "<b>" + (p.surgery === "yes" ? tx("بله","Yes") + (p.surgNote ? " (" + esc(p.surgNote) + ")" : "") : tx("خیر","No")) + "</b></li>").join("") + "</ul>"
         : '<p style="color:var(--muted); font-size:13.5px">' + tx("دردی علامت زده نشده است.","No pain was marked.") + "</p>") +
+      measureBlock + trainBlock +
       (d.condition ? '<h3 style="margin-top:14px">' + tx("بیماری/دارو","Condition/medication") + '</h3><p style="font-size:14px">' + esc(d.condition) + "</p>" : "") +
       "</div>";
   } else {
@@ -1335,6 +1514,19 @@ function collectSubmission(d){
   });
   answers.painMap = d.painMap;
   answers.painZones = painZones;
+  // New structured answers (explicit keys; checkbox groups are not in the radio-names loop above)
+  answers.waistCm = $("#fWaist").value;
+  answers.chestCm = $("#fChest").value;
+  answers.armCm = $("#fArm").value;
+  answers.thighCm = $("#fThigh").value;
+  answers.fatZones = $$('input[name="fatZone"]:checked').map(c => c.value);
+  answers.weakMuscles = $$('input[name="weakMuscle"]:checked').map(c => c.value);
+  answers.equipment = $$('input[name="equipment"]:checked').map(c => c.value);
+  answers.prBench = $("#fPRBench").value;
+  answers.prSquat = $("#fPRSquat").value;
+  answers.prDead = $("#fPRDead").value;
+  answers.trainDays = radioVal("trainDays");
+  answers.smoke = radioVal("smoke");
   const injuries = [], surgeries = [];
   if(d.injury === "yes" && d.injuryZone){
     injuries.push(d.injuryZone);
