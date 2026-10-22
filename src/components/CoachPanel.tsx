@@ -339,6 +339,22 @@ export default function CoachPanel() {
           await decideReview({ program_id: detail.programId, decision });
         }
         setReviews((prev) => prev.filter((r) => r.key !== detail.key));
+        // Keep the «شاگردهای من» tab in sync: the DB program row moved
+        // (approved → 'approved' + approved_at; rejected → 'draft'), but
+        // cards[] is only loaded once. Without this patch the athlete
+        // card keeps showing «در حال بازبینی» after the coach just decided.
+        const newStatus = decision === 'approved' ? 'approved' : 'draft';
+        const newApprovedAt = decision === 'approved' ? new Date().toISOString() : null;
+        setCards((prev) =>
+          prev.map((c) =>
+            c.program && c.program.id === (detail.programId ?? detail.key)
+              ? {
+                  ...c,
+                  program: { ...c.program, status: newStatus, approved_at: newApprovedAt },
+                }
+              : c
+          )
+        );
         showToast(t(decision === 'approved' ? 'cp.approved' : 'cp.rejected'));
         detailKeyRef.current = null;
         setDetail(null);
