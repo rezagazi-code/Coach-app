@@ -32,7 +32,7 @@
     "preview": "vite preview"
   },
   "type": "module",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "engines": {
     "node": "22.x"
   }
