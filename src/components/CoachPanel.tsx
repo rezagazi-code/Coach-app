@@ -28,9 +28,9 @@ import {
   decideReview,
   isSupabaseConfigured,
   latestProgramFor,
-  latestQuestionnaireResponse,
   listAthletes,
   listPendingReviews,
+  questionnaireResponseForReview,
   updateProgramCoachNotes,
   type Athlete,
   type Program,
@@ -310,11 +310,16 @@ export default function CoachPanel() {
     if (!isSupabaseConfigured) return;
     setAnswersLoading(true);
     try {
-      const resp = await latestQuestionnaireResponse(card.athleteId);
+      // Tie the answers to THIS card's program, not the athlete's newest
+      // response: a second submission (S2) must not leak its answers/flags
+      // into the detail of the first submission's card (P1) while the
+      // decision below still applies to P1.
+      const resp = await questionnaireResponseForReview(card.athleteId, card.submittedAt);
       // Stale-response guard: only apply to the card still open.
       if (detailKeyRef.current !== card.key) return;
       setAnswers(resp?.answers ?? null);
-      // The response's own flags are fresher than the submit snapshot.
+      // The tied response's own flags refresh the card's frozen snapshot
+      // (same submission — identical in practice).
       if (resp && Object.keys(resp.flags).length > 0) {
         setDetail((d) => (d && d.key === card.key ? { ...d, flags: resp.flags } : d));
       }

@@ -359,13 +359,22 @@ export async function saveQuestionnaireResponse(input: {
   return data as QuestionnaireResponse;
 }
 
-export async function latestQuestionnaireResponse(
-  athleteId: string
+/**
+ * The questionnaire response behind a specific review card — NOT simply the
+ * athlete's newest response: an athlete may submit twice (S1→P1, S2→P2) and
+ * the coach may open P1's card after S2 exists. Fetching "latest" would then
+ * return S2's answers/flags while the decision applies to P1. The review row
+ * is written after its program syncs, so the response for THIS program is
+ * the newest one created at or before the review's submitted_at. Falls back
+ * to the latest response when no cutoff is known.
+ */
+export async function questionnaireResponseForReview(
+  athleteId: string,
+  submittedAt: string | null
 ): Promise<QuestionnaireResponse | null> {
-  const { data, error } = await requireClient()
-    .from('questionnaire_responses')
-    .select('*')
-    .eq('athlete_id', athleteId)
+  const client = requireClient();
+  const query = client.from('questionnaire_responses').select('*').eq('athlete_id', athleteId);
+  const { data, error } = await (submittedAt ? query.lte('created_at', submittedAt) : query)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -881,8 +890,10 @@ export function submissionQueueDepth(payload: QuestionnaireSubmission): number {
  * Queue-first (the same sync engine as workout logging): the entries are
  * enqueued with their idempotency keys and flushed; only when nothing of
  * this submission remains queued is the stored payload cleared. Safe to
- * call repeatedly — a second call finds no payload (or re-upserts the
- * same rows). Returns 'none' | 'stored' (no backend) | 'synced' | 'queued'.
+ * call repeatedly — a second call finds no payload, or finds the rows
+ * already confirmed synced (synced-key guard) and enqueues nothing, so a
+ * re-run is a true no-op and never re-upserts. Returns 'none' | 'stored'
+ * (no backend) | 'synced' | 'queued'.
  */
 export async function persistPendingSubmission(input: {
   athleteId: string;
@@ -908,7 +919,9 @@ export async function persistPendingSubmission(input: {
   // including a programs entry baked with status 'in_review' that could
   // flush AFTER a coach decision and regress it (status + approved_at
   // overwritten, queue row decided → card gone from the pending list with
-  // no recovery path). Entries already queued are simply flushed.
+  // no recovery path). Entries already queued are simply flushed; rows
+  // already confirmed synced are skipped by the synced-key guard inside
+  // enqueueSubmission, so a post-flush re-run enqueues nothing.
   if (submissionQueueDepth(payload) === 0) {
     enqueueSubmission(payload, input.athleteId, input.coachId);
   }
@@ -963,11 +976,82 @@ export interface QueueEntry {
    * to an athlete who wasn't the owner when it was created.
    */
   enqueuedBy?: string | null;
+  /**
+   * First ISO timestamp the provenance hold quarantined this entry.
+   * Lets the hold expire (PROVENANCE_HOLD_MAX_MS) when the owner's identity
+   * can never return, instead of stranding the entry forever.
+   */
+  heldSince?: string;
 }
 
 const QUEUE_KEY = 'km.offlineQueue.v1';
 const QUEUE_MAX_ENTRIES = 500;
 const QUEUE_MAX_ATTEMPTS = 25;
+/**
+ * How long the provenance hold (below) may quarantine an entry whose owner
+ * never comes back (e.g. the athlete row was deleted and re-created with a
+ * new id — enqueuedBy can then never match again). Past this the entry is
+ * dropped so the queue can't strand rows forever.
+ */
+const PROVENANCE_HOLD_MAX_MS = 7 * 24 * 3600_000;
+
+/**
+ * Idempotency keys of submission rows CONFIRMED synced (pushEntry succeeded
+ * for them). Guards the phantom re-enqueue: after a submission's entries
+ * flush, a later persistPendingSubmission call sees an empty queue and would
+ * re-enqueue the same rows; the questionnaire_responses/programs upserts then
+ * hit the conflict→UPDATE path, which 403s for athletes (INSERT-only RLS)
+ * and burns retries until the 25-attempt drop. Skipping already-synced keys
+ * keeps a re-run a true no-op.
+ */
+const SYNCED_KEYS_KEY = 'km.syncedSubmissionKeys.v1';
+const SYNCED_KEYS_MAX = 300;
+
+function readSyncedKeys(): string[] {
+  try {
+    const raw = localStorage.getItem(SYNCED_KEYS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(parsed) ? parsed.filter((k): k is string => typeof k === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSyncedKeys(keys: string[]): void {
+  try {
+    localStorage.setItem(SYNCED_KEYS_KEY, JSON.stringify(keys.slice(-SYNCED_KEYS_MAX)));
+  } catch {
+    /* storage unavailable — the guard simply doesn't apply */
+  }
+}
+
+/** Stable idempotency key for a submission queue entry, or null when n/a. */
+function submissionSyncKey(table: QueueTable, data: Record<string, unknown>): string | null {
+  if (table === 'questionnaire_responses' || table === 'programs') {
+    const uuid = typeof data.client_uuid === 'string' ? data.client_uuid : null;
+    return uuid ? `${table}:${uuid}` : null;
+  }
+  if (table === 'review_queue') {
+    const uuid = typeof data.program_client_uuid === 'string' ? data.program_client_uuid : null;
+    return uuid ? `review_queue:${uuid}` : null;
+  }
+  return null;
+}
+
+export function isSubmissionKeySynced(table: QueueTable, data: Record<string, unknown>): boolean {
+  const key = submissionSyncKey(table, data);
+  return key !== null && readSyncedKeys().includes(key);
+}
+
+function markSubmissionKeySynced(table: QueueTable, data: Record<string, unknown>): void {
+  const key = submissionSyncKey(table, data);
+  if (!key) return;
+  const keys = readSyncedKeys();
+  if (!keys.includes(key)) {
+    keys.push(key);
+    writeSyncedKeys(keys);
+  }
+}
 
 /** Tables whose rows cannot exist without an athlete — kept queued until identity exists. */
 const ATHLETE_REQUIRED: Partial<Record<QueueTable, boolean>> = {
@@ -1218,17 +1302,24 @@ export function enqueueSubmission(
   // Pass the KNOWN athlete identity explicitly: this runs at signup before
   // bootstrap, when the ambient session may still be the previous device
   // user's (see enqueueWrite). All three entries belong to athleteId.
-  enqueueWrite('questionnaire_responses', {
+  // Sync-key guard: never re-enqueue a row already confirmed synced — a
+  // post-flush persistPendingSubmission re-run sees an empty queue and would
+  // otherwise mint phantom entries whose upserts 403 on the conflict→UPDATE
+  // path (athletes hold INSERT-only RLS on these tables).
+  const responseData = {
     athlete_id: athleteId,
     coach_id: coachId,
     track: payload.track,
     answers: payload.answers,
     flags: payload.flags,
     client_uuid: payload.clientUuid,
-  }, athleteId);
+  };
+  if (!isSubmissionKeySynced('questionnaire_responses', responseData)) {
+    enqueueWrite('questionnaire_responses', responseData, athleteId);
+  }
   if (payload.redFlagBlocked) return; // screening blocked: response only
   const programUuid = programClientUuid(payload.clientUuid);
-  enqueueWrite('programs', {
+  const programData = {
     athlete_id: athleteId,
     coach_id: coachId,
     client_uuid: programUuid,
@@ -1241,12 +1332,18 @@ export function enqueueSubmission(
     ai_summary: payload.program.ai_summary,
     coach_notes: '',
     approved_at: null,
-  }, athleteId);
+  };
+  if (!isSubmissionKeySynced('programs', programData)) {
+    enqueueWrite('programs', programData, athleteId);
+  }
   if (payload.track !== 'aionly') {
-    enqueueWrite('review_queue', {
+    const reviewData = {
       program_client_uuid: programUuid,
       flags_snapshot: payload.flags,
-    }, athleteId);
+    };
+    if (!isSubmissionKeySynced('review_queue', reviewData)) {
+      enqueueWrite('review_queue', reviewData, athleteId);
+    }
   }
 }
 
@@ -1381,6 +1478,7 @@ export async function flushQueue(): Promise<{ flushed: number; pending: number }
     );
     const keepById = new Map<string, QueueEntry>(); // snapshot entries that stay queued
     const pushedIds = new Set<string>();
+    const droppedIds = new Set<string>();
     let flushed = 0;
     for (const entry of snapshot) {
       // Provenance hold (completes the b5282cd intent): an entry bound at
@@ -1392,6 +1490,19 @@ export async function flushQueue(): Promise<{ flushed: number; pending: number }
       // workouts/meals/XP. 'online'/'visibilitychange' fire flushes often,
       // so without this hold the retries would burn out fast.
       if (entry.enqueuedBy != null && entry.enqueuedBy !== currentAthlete) {
+        // Quarantine cap: the hold skips attempts++, so if the owner's
+        // identity can never return (e.g. the athlete row was deleted and
+        // re-created with a new id) the entry would sit here forever.
+        // Drop it after PROVENANCE_HOLD_MAX_MS so the queue can't strand
+        // rows unboundedly; normal logout/login cycles release long before.
+        const nowMs = Date.now();
+        if (!entry.heldSince) {
+          entry.heldSince = new Date(nowMs).toISOString();
+        } else if (nowMs - Date.parse(entry.heldSince) > PROVENANCE_HOLD_MAX_MS) {
+          console.warn('[queue] dropping entry held past quarantine cap', entry.table, entry.id);
+          droppedIds.add(entry.id);
+          continue;
+        }
         keepById.set(entry.id, entry); // owner not logged in — wait
         continue;
       }
@@ -1416,6 +1527,7 @@ export async function flushQueue(): Promise<{ flushed: number; pending: number }
       try {
         await pushEntry(client, entry);
         pushedIds.add(entry.id);
+        markSubmissionKeySynced(entry.table, entry.data);
         flushed++;
         if (entry.table === 'workout_sessions') pendingSessionIds.delete(String(entry.data.id));
         if (entry.table === 'programs') pendingProgramUuids.delete(String(entry.data.client_uuid));
@@ -1429,7 +1541,7 @@ export async function flushQueue(): Promise<{ flushed: number; pending: number }
     // that were pushed are gone; kept entries use their attempts-updated copy.
     const latest = readQueue();
     const finalQueue = latest
-      .filter((e) => !pushedIds.has(e.id))
+      .filter((e) => !pushedIds.has(e.id) && !droppedIds.has(e.id))
       .map((e) => keepById.get(e.id) ?? e);
     writeQueue(finalQueue);
     return { flushed, pending: finalQueue.length };
