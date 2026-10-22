@@ -1161,7 +1161,8 @@ function validateKey(key){
     if(!radioVal("watch")) miss("ساعت هوشمند", "smartwatch");
     if(!radioVal("days")) miss("روزهای تمرین", "training days");
     if(!radioVal("minutes")) miss("مدت جلسه", "session length");
-    if(!radioVal("equipment")) miss("تجهیزات", "equipment");
+    // equipment is checkboxes since v1.5 — at least one must be ticked.
+    if($$('input[name="equipment"]:checked').length === 0) miss("تجهیزات", "equipment");
     errId = "errRec";
   }
   if(key === "redflag"){
