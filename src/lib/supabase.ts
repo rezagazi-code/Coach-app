@@ -1040,8 +1040,21 @@ export function queueLength(): number {
   return readQueue().length;
 }
 
-export function enqueueWrite(table: QueueTable, data: Record<string, unknown>): QueueEntry {
-  const enqueuedBy = getCurrentAthleteId();
+export function enqueueWrite(
+  table: QueueTable,
+  data: Record<string, unknown>,
+  enqueuedByOverride?: string | null,
+): QueueEntry {
+  // Bind provenance to the KNOWN identity, not the ambient session:
+  // persistPendingSubmission (athlete signup) runs BEFORE bootstrap, when
+  // km.athleteId.v1 may still hold the previous device user's id. Binding
+  // the new athlete's submission entries to that stale session would
+  // attribute them to the old athlete, and the provenance hold in
+  // flushQueue would quarantine them under the new athlete forever —
+  // a shared-device submission silently never syncing. Callers that know
+  // the identity pass it explicitly; everyone else uses the session.
+  const enqueuedBy =
+    enqueuedByOverride !== undefined ? enqueuedByOverride : getCurrentAthleteId();
   // Bind provenance at enqueue time, not flush time: a null athlete_id on
   // an entry created while an identity is known belongs to THAT identity.
   // Stamping it at flush with whoever logs in next would let a different
@@ -1202,6 +1215,9 @@ export function enqueueSubmission(
   athleteId: string | null,
   coachId: string | null
 ): void {
+  // Pass the KNOWN athlete identity explicitly: this runs at signup before
+  // bootstrap, when the ambient session may still be the previous device
+  // user's (see enqueueWrite). All three entries belong to athleteId.
   enqueueWrite('questionnaire_responses', {
     athlete_id: athleteId,
     coach_id: coachId,
@@ -1209,7 +1225,7 @@ export function enqueueSubmission(
     answers: payload.answers,
     flags: payload.flags,
     client_uuid: payload.clientUuid,
-  });
+  }, athleteId);
   if (payload.redFlagBlocked) return; // screening blocked: response only
   const programUuid = programClientUuid(payload.clientUuid);
   enqueueWrite('programs', {
@@ -1225,12 +1241,12 @@ export function enqueueSubmission(
     ai_summary: payload.program.ai_summary,
     coach_notes: '',
     approved_at: null,
-  });
+  }, athleteId);
   if (payload.track !== 'aionly') {
     enqueueWrite('review_queue', {
       program_client_uuid: programUuid,
       flags_snapshot: payload.flags,
-    });
+    }, athleteId);
   }
 }
 
@@ -1345,6 +1361,12 @@ export async function flushQueue(): Promise<{ flushed: number; pending: number }
         if (!e.data.athlete_id && 'athlete_id' in e.data) {
           if (!e.enqueuedBy || e.enqueuedBy === currentAthlete) {
             e.data = { ...e.data, athlete_id: currentAthlete };
+            // Bind provenance at claim time too: without this, an entry
+            // stamped here but not flushed in this run (FK wait / offline)
+            // keeps enqueuedBy=null, and a later login by someone else
+            // would flush it under the wrong session — RLS 403 burn on
+            // every attempt until the 25-retry cap silently drops it.
+            e.enqueuedBy = currentAthlete;
           }
         }
       }
