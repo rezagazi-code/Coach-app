@@ -6,11 +6,15 @@
 import { useState } from 'react';
 import { useLang } from '../lib/i18n';
 import Toast from '../components/Toast';
+import { enqueueXpEvent, getCurrentAthleteId } from '../lib/supabase';
 
 interface Habit {
   key: 'water' | 'sleep' | 'steps' | 'mobility';
   done: boolean;
 }
+
+// XP awarded per habit completion — must match the «+۲ XP» toast text (c.xp).
+const HABIT_XP = 2;
 
 const R = 54;
 const CIRC = 2 * Math.PI * R;
@@ -34,6 +38,20 @@ export default function ChecklistTab() {
     const turningOn = !current.done;
     setHabits((prev) => prev.map((h) => (h.key === key ? { ...h, done: !h.done } : h)));
     if (turningOn) {
+      // Record the promised XP in the ledger (the toast used to claim it
+      // without writing anything). Idempotent per habit/day: toggling off
+      // and on re-syncs to the same meta.client_uuid and the flush path
+      // skips it — no double award. Toggle-off keeps the XP (ledger is
+      // additive-only by design). NOTE: checklist_completions rows are NOT
+      // written — their FK needs real checklist_items rows (coach-assigned
+      // habits feature), which don't exist for these built-in habits.
+      const date = new Date().toISOString().slice(0, 10);
+      enqueueXpEvent({
+        athlete_id: getCurrentAthleteId(),
+        event_type: 'habit_checklist',
+        xp: HABIT_XP,
+        meta: { client_uuid: `habit:${date}:${key}`, habit: key, date },
+      });
       setToast(null);
       requestAnimationFrame(() => setToast(t('c.xp')));
       window.setTimeout(() => setToast(null), 1800);

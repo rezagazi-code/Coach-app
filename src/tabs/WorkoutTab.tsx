@@ -84,26 +84,47 @@ export default function WorkoutTab() {
 
   // Offline-first session identity: one client-generated id per app session,
   // used as the workout_sessions row's id AND client_uuid (upsert-safe).
-  const sessionIdRef = useRef<string | null>(null);
+  // The ref also remembers the session start so the completion write can
+  // compute duration_min without re-sending started_at (which would
+  // clobber the true start on the conflict→UPDATE path).
+  const sessionIdRef = useRef<{ id: string; startedAtMs: number } | null>(null);
   const todayISO = () => new Date().toISOString().slice(0, 10);
 
   const ensureSession = (): string => {
-    if (sessionIdRef.current) return sessionIdRef.current;
+    const existing = sessionIdRef.current;
+    if (existing) return existing.id;
     const id = newClientUuid();
-    sessionIdRef.current = id;
+    const startedAt = new Date().toISOString();
+    sessionIdRef.current = { id, startedAtMs: Date.parse(startedAt) };
     enqueueWrite('workout_sessions', {
       id,
       athlete_id: getCurrentAthleteId(),
       coach_id: null,
       program_id: null,
       date: todayISO(),
-      started_at: new Date().toISOString(),
+      started_at: startedAt,
       completed_at: null,
       duration_min: null,
       difficulty: null,
       avg_rpe: null,
       notes: '',
       client_uuid: id,
+    });
+    // The two pre-logged fixture sets render as done in the UI — persist
+    // them through the queue too, or the server would hold only the sets
+    // logged during this visit while the coach sees 4 done sets.
+    // Deterministic set UUIDs keep this idempotent across retries.
+    enqueueLoggedSet(id, {
+      set_number: 1,
+      weight_kg: sets[0].weight,
+      reps: sets[0].reps,
+      rpe: sets[0].rpe,
+    });
+    enqueueLoggedSet(id, {
+      set_number: 2,
+      weight_kg: sets[1].weight,
+      reps: sets[1].reps,
+      rpe: sets[1].rpe,
     });
     return id;
   };
@@ -173,19 +194,22 @@ export default function WorkoutTab() {
   const finishWith = (fb: 'easy' | 'ok' | 'hard') => {
     setFeedback(fb);
     const sid = ensureSession();
+    const startedAtMs = sessionIdRef.current?.startedAtMs ?? Date.now();
     const rpes = sets.filter((s) => s.done && s.rpe != null).map((s) => s.rpe as number);
     const avgRpe = rpes.length ? Math.round((rpes.reduce((a, b) => a + b, 0) / rpes.length) * 10) / 10 : null;
     const difficulty: SessionDifficulty = fb === 'easy' ? 'too_easy' : fb === 'hard' ? 'too_hard' : 'just_right';
     // Completion upserts on client_uuid — re-submits never duplicate.
+    // started_at is deliberately OMITTED: re-sending it with "now" would
+    // clobber the true session start on the conflict→UPDATE path, and
+    // duration_min was always null before this fix.
     enqueueWrite('workout_sessions', {
       id: sid,
       athlete_id: getCurrentAthleteId(),
       coach_id: null,
       program_id: null,
       date: todayISO(),
-      started_at: new Date().toISOString(),
       completed_at: new Date().toISOString(),
-      duration_min: null,
+      duration_min: Math.max(1, Math.round((Date.now() - startedAtMs) / 60000)),
       difficulty,
       avg_rpe: avgRpe,
       notes: '',

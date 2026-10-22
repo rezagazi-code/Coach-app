@@ -1266,7 +1266,11 @@ export function enqueueChecklistCompletion(input: {
   enqueueWrite('checklist_completions', { value: null, ...input });
 }
 
-/** XP via the queue — meta.client_uuid makes re-syncs no-ops. */
+/** XP via the queue — meta.client_uuid makes re-syncs no-ops. A
+ * caller-supplied meta.client_uuid wins over the minted one: the flush path
+ * skips rows whose meta->>client_uuid is already in the ledger, so a
+ * deterministic key (e.g. one per habit/day) makes the award idempotent
+ * across re-enqueues and toggle-off/on cycles. */
 export function enqueueXpEvent(input: {
   athlete_id: string | null;
   event_type: string;
@@ -1275,7 +1279,7 @@ export function enqueueXpEvent(input: {
 }): void {
   enqueueWrite('xp_events', {
     ...input,
-    meta: { ...(input.meta ?? {}), client_uuid: newClientUuid() },
+    meta: { client_uuid: newClientUuid(), ...(input.meta ?? {}) },
   });
 }
 
