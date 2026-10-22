@@ -199,15 +199,19 @@ export default function WorkoutTab() {
     const avgRpe = rpes.length ? Math.round((rpes.reduce((a, b) => a + b, 0) / rpes.length) * 10) / 10 : null;
     const difficulty: SessionDifficulty = fb === 'easy' ? 'too_easy' : fb === 'hard' ? 'too_hard' : 'just_right';
     // Completion upserts on client_uuid — re-submits never duplicate.
-    // started_at is deliberately OMITTED: re-sending it with "now" would
-    // clobber the true session start on the conflict→UPDATE path, and
-    // duration_min was always null before this fix.
+    // started_at carries the TRUE start (kept in the ref): on the
+    // conflict→UPDATE path this writes the identical value already there
+    // (no clobber), and on the rare INSERT path — initial session entry
+    // dropped after its retries while this entry still flushed — it beats
+    // the now() column default, which would otherwise record started_at =
+    // finish time alongside a duration computed from the real start.
     enqueueWrite('workout_sessions', {
       id: sid,
       athlete_id: getCurrentAthleteId(),
       coach_id: null,
       program_id: null,
       date: todayISO(),
+      started_at: new Date(startedAtMs).toISOString(),
       completed_at: new Date().toISOString(),
       duration_min: Math.max(1, Math.round((Date.now() - startedAtMs) / 60000)),
       difficulty,

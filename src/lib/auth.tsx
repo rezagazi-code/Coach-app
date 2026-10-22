@@ -323,6 +323,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } catch (err) {
             console.error('[auth] deferred athlete profile healing failed', err);
           }
+          // Stale-run guard (same pattern as every other await above):
+          // signIn/signUp call bootstrap() explicitly AND onAuthStateChange
+          // fires for the same session — a losing run must not write its
+          // (possibly still-null) athlete over the winner's.
+          if (run !== runRef.current) return;
         }
         setAthlete(myAthlete);
         setCurrentAthleteId(myAthlete?.id ?? null);
