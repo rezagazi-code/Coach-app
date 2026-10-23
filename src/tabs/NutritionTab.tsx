@@ -35,6 +35,7 @@ import {
 
 const STEP: Record<NutritionFoodItem['unit'], number> = { g: 25, pcs: 1, cup: 0.5, ml: 100 };
 const PLATE_LOCAL = 'km.plate.v1'; // demo-mode / offline per-day cache
+const PLATE_LOCAL_RX = 'km.plate.v1.rx'; // same, for «نسخه پزشک» checkboxes
 
 function demoItems(): NutritionFoodItem[] {
   return [
@@ -111,6 +112,11 @@ export default function NutritionTab() {
         const parsed = JSON.parse(raw) as { date?: string; logged?: Record<string, number> };
         if (parsed?.date === localDateStr() && parsed.logged) setLogged(parsed.logged);
       }
+      const rawRx = localStorage.getItem(PLATE_LOCAL_RX);
+      if (rawRx) {
+        const parsedRx = JSON.parse(rawRx) as { date?: string; rxDone?: Record<string, boolean> };
+        if (parsedRx?.date === localDateStr() && parsedRx.rxDone) setRxDone(parsedRx.rxDone);
+      }
     } catch {
       /* ignore */
     }
@@ -156,6 +162,16 @@ export default function NutritionTab() {
     }
   };
 
+  // «نسخه پزشک» checkboxes have their own cache key so the toggle never
+  // races the amount steppers (same functional-update persist pattern).
+  const persistRxLocal = (next: Record<string, boolean>) => {
+    try {
+      localStorage.setItem(PLATE_LOCAL_RX, JSON.stringify({ date: localDateStr(), rxDone: next }));
+    } catch {
+      /* ignore */
+    }
+  };
+
   const setAmount = (key: string, amount: number) => {
     const v = Math.max(0, Math.round(amount * 100) / 100);
     setLogged((prev) => {
@@ -192,8 +208,11 @@ export default function NutritionTab() {
       const amount = logged[it.key] ?? 0;
       return { key: it.key, amount, over: amount > it.target };
     });
+    // «نسخه پزشک» adherence: the fa|en keys the trainee checked as taken.
+    const rxTaken = Object.keys(rxDone).filter((k) => rxDone[k]);
     if (!isSupabaseConfigured || !athleteId) {
       persistLocal(logged);
+      persistRxLocal(rxDone);
       setSavedToday(true);
       flash(t('n.savedLocal'));
       setSaving(false);
@@ -206,6 +225,7 @@ export default function NutritionTab() {
         log_date: localDateStr(),
         items: logItems,
         score,
+        rx_taken: rxTaken,
       });
       setSavedToday(true);
       flash(t('n.saved'));
@@ -306,7 +326,11 @@ export default function NutritionTab() {
                       type="checkbox"
                       checked={!!rxDone[k]}
                       onChange={() =>
-                        setRxDone((prev) => ({ ...prev, [k]: !prev[k] }))
+                        setRxDone((prev) => {
+                          const next = { ...prev, [k]: !prev[k] };
+                          persistRxLocal(next);
+                          return next;
+                        })
                       }
                     />
                     <span>{rxLabel(p, lang)}</span>

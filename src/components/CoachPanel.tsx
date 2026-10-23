@@ -93,14 +93,13 @@ function writeLocalPlates(plates: Record<string, PlateDraft>) {
 
 const UNITS: NutritionFoodItem['unit'][] = ['g', 'pcs', 'cup', 'ml'];
 
-function demoPlate(lang: Lang): PlateDraft {
-  const fa = lang === 'fa';
+function demoPlate(): PlateDraft {
   return {
     items: [
       { key: 'chicken', label_fa: 'مرغ (سینه)', label_en: 'Chicken breast', unit: 'g', target: 200 },
       { key: 'rice', label_fa: 'برنج پخته', label_en: 'Cooked rice', unit: 'g', target: 300 },
     ],
-    rx: [{ name_fa: fa ? 'ویتامین D' : 'Vitamin D', name_en: 'Vitamin D' }],
+    rx: [{ name_fa: 'ویتامین D', name_en: 'Vitamin D' }],
   };
 }
 
@@ -290,6 +289,10 @@ export default function CoachPanel() {
   // goes back, taps B — A's response resolving later would show A's
   // questionnaire answers under B's header while the coach decides).
   const detailKeyRef = useRef<string | null>(null);
+  // Guards the fire-and-forget nutrition block in load(): overlapping load()
+  // runs (e.g. language toggle mid-load) must not let the older fetch's
+  // setOverFlags/setPlateDrafts wipe newer data. Same pattern as detailKeyRef.
+  const loadSeqRef = useRef(0);
 
   const showToast = useCallback((msg: string) => {
     setToast(null);
@@ -321,7 +324,7 @@ export default function CoachPanel() {
         for (const c of demoCards) {
           if (!(c.athlete.id in next))
             next[c.athlete.id] =
-              localPlates.current[c.athlete.id] ?? (c.athlete.id === 'demo-athlete-1' ? demoPlate(lang) : { items: [], rx: [] });
+              localPlates.current[c.athlete.id] ?? (c.athlete.id === 'demo-athlete-1' ? demoPlate() : { items: [], rx: [] });
         }
         return next;
       });
@@ -331,6 +334,7 @@ export default function CoachPanel() {
       setLoading(false);
       return;
     }
+    const loadSeq = ++loadSeqRef.current;
     try {
       const [pending, athletes] = await Promise.all([listPendingReviews(), listAthletes()]);
       setReviews(
@@ -354,7 +358,10 @@ export default function CoachPanel() {
       // «بشقاب روزانه»: per athlete, load the current program (for the
       // editor drafts + resolving over-eating keys to labels) and the
       // latest daily log (for the over-eating red flag).
+      // Stale-load guard: if a newer load() started while these fetches
+      // were in flight, skip the state writes entirely.
       void (async () => {
+        const seq = loadSeq;
         const draftsNext: Record<string, PlateDraft> = {};
         const overNext: Record<string, string[]> = {};
         await Promise.all(
@@ -382,6 +389,7 @@ export default function CoachPanel() {
             }
           })
         );
+        if (seq !== loadSeqRef.current) return; // stale load — a newer load() is in flight
         setPlateDrafts((prev) => ({ ...draftsNext, ...prev }));
         setOverFlags(overNext);
       })();

@@ -1605,7 +1605,17 @@ export interface NutritionLogItem {
   key: string;
   amount: number;
   over: boolean;
+  /**
+   * Sentinel '__rx' entry only: the «نسخه پزشک» names (fa|en keys) the
+   * trainee marked as taken that day. Lives inside the existing jsonb
+   * `items` column — no schema change. Readers ignore it for over-eating
+   * (over is always false) since it has no food key.
+   */
+  rxTaken?: string[];
 }
+
+/** Sentinel key used for the prescription-adherence entry in `items`. */
+export const NUTRITION_RX_SENTINEL = '__rx';
 
 export interface NutritionLog {
   id: string;
@@ -1747,7 +1757,13 @@ export async function upsertNutritionLog(input: {
   log_date: string;
   items: NutritionLogItem[];
   score: number;
+  /** «نسخه پزشک» names (fa|en keys) the trainee marked as taken. Stored as the '__rx' sentinel entry in `items`. */
+  rx_taken?: string[];
 }): Promise<NutritionLog> {
+  const rxTaken = (input.rx_taken ?? []).filter((s) => typeof s === 'string' && s.length > 0);
+  const payload: NutritionLogItem[] = rxTaken.length
+    ? [...input.items, { key: NUTRITION_RX_SENTINEL, amount: rxTaken.length, over: false, rxTaken }]
+    : input.items;
   const { data, error } = await requireClient()
     .from('nutrition_logs')
     .upsert(
@@ -1755,7 +1771,7 @@ export async function upsertNutritionLog(input: {
         athlete_id: input.athlete_id,
         coach_id: input.coach_id,
         log_date: input.log_date,
-        items: input.items,
+        items: payload,
         score: Math.max(0, Math.min(100, Math.round(input.score))),
       },
       { onConflict: 'athlete_id,log_date' }
