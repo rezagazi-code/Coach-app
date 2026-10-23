@@ -53,7 +53,11 @@ export function useAthleteProgramStatus(): ProgramState {
   const [state, setState] = useState<ProgramState>({ kind: 'loading' });
   useEffect(() => {
     let alive = true;
-    (async () => {
+    // Re-runnable: the tab host keeps WorkoutTab mounted while the athlete
+    // submits in the questionnaire tab, so the status must refresh on the
+    // in-session submit event — not only on mount.
+    const refresh = () => {
+      (async () => {
       const athleteId = getCurrentAthleteId();
       const fallback = (): ProgramState =>
         hasOwnPendingSubmission(athleteId) ? { kind: 'pending' } : { kind: 'none' };
@@ -100,8 +104,12 @@ export function useAthleteProgramStatus(): ProgramState {
         }
       }
     })();
+    };
+    refresh();
+    window.addEventListener('km-submission-stored', refresh);
     return () => {
       alive = false;
+      window.removeEventListener('km-submission-stored', refresh);
     };
   }, []);
   return state;

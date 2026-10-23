@@ -76,6 +76,10 @@ export default function QuestionnaireTab() {
       // else can never flush this payload under their identity.
       const athlete = athleteRef.current;
       storePendingSubmission(data.payload, athlete?.id ?? null);
+      // The workout tab's program-status hook runs once per mount — tell it
+      // (and any other same-document listener) to re-read the status now,
+      // so a submit in this session updates the card without an app restart.
+      window.dispatchEvent(new CustomEvent('km-submission-stored'));
       if (athlete?.coachId) {
         void persistPendingSubmission({ athleteId: athlete.id, coachId: athlete.coachId }).catch(
           (err) => console.error('[questionnaire] submit persist failed (queued)', err)
