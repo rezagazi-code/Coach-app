@@ -590,7 +590,7 @@
             </div>
             <div class="grid" style="margin-top:16px">
               <div class="field">
-                <label>چند روز در هفته می‌توانی باشگاه بروی؟ *</label>
+                <label id="daysLabel">چند روز در هفته می‌توانی باشگاه بروی؟ *</label>
                 <div class="choices cols2">
                   <label class="choice"><input type="radio" name="days" value="2" /><span class="box">۲ روز</span></label>
                   <label class="choice"><input type="radio" name="days" value="3" /><span class="box">۳ روز</span></label>
@@ -599,7 +599,7 @@
                 </div>
               </div>
               <div class="field">
-                <label>هر جلسه باشگاه چند دقیقه؟ *</label>
+                <label id="minsLabel">هر جلسه باشگاه چند دقیقه؟ *</label>
                 <div class="choices cols2">
                   <label class="choice"><input type="radio" name="minutes" value="45" /><span class="box">۴۵ دقیقه</span></label>
                   <label class="choice"><input type="radio" name="minutes" value="60" /><span class="box">۶۰ دقیقه</span></label>
@@ -609,8 +609,15 @@
               </div>
             </div>
             <div class="field" style="margin-top:16px">
-              <label>تجهیزات در دسترس * <span class="hint">(حداقل یک گزینه)</span></label>
+              <label>کجا تمرین می‌کنی؟ *</label>
               <div class="choices cols2">
+                <label class="choice"><input type="radio" name="trainPlace" value="gym" /><span class="box">باشگاه</span></label>
+                <label class="choice"><input type="radio" name="trainPlace" value="home" /><span class="box">خونه</span></label>
+              </div>
+            </div>
+            <div class="field" id="equipWrap" style="margin-top:16px; display:none">
+              <label>تجهیزات در دسترس * <span class="hint">(حداقل یک گزینه)</span></label>
+              <div class="choices cols2" id="equipGym">
                 <label class="choice"><input type="checkbox" name="equipment" value="barbell" /><span class="box">هالتر</span></label>
                 <label class="choice"><input type="checkbox" name="equipment" value="dumbbell" /><span class="box">دمبل</span></label>
                 <label class="choice"><input type="checkbox" name="equipment" value="cable" /><span class="box">دستگاه سیم‌کش</span></label>
@@ -619,8 +626,17 @@
                 <label class="choice"><input type="checkbox" name="equipment" value="kettlebell" /><span class="box">کتل‌بل</span></label>
                 <label class="choice"><input type="checkbox" name="equipment" value="bodyweight" /><span class="box">فقط وزن بدن</span></label>
               </div>
+              <div class="choices cols2" id="equipHome" style="display:none">
+                <label class="choice"><input type="checkbox" name="equipment" value="dumbbell" /><span class="box">دمبل</span></label>
+                <label class="choice"><input type="checkbox" name="equipment" value="band" /><span class="box">کش</span></label>
+                <label class="choice"><input type="checkbox" name="equipment" value="trx" /><span class="box">تی‌آر‌ایکس</span></label>
+                <label class="choice"><input type="checkbox" name="equipment" value="kettlebell" /><span class="box">کتل‌بل</span></label>
+                <label class="choice"><input type="checkbox" name="equipment" value="pullup" /><span class="box">میله بارفیکس</span></label>
+                <label class="choice"><input type="checkbox" name="equipment" value="bench" /><span class="box">نیمکت/صندلی</span></label>
+                <label class="choice"><input type="checkbox" name="equipment" value="bodyweight" /><span class="box">فقط وزن بدن</span></label>
+              </div>
             </div>
-            <div class="err" id="errRec">لطفاً خواب، روزهای تمرین، مدت جلسه و تجهیزات را مشخص نمایید.</div>
+            <div class="err" id="errRec">لطفاً خواب، روزهای تمرین، مدت جلسه، محل تمرین و تجهیزات را مشخص نمایید.</div>
           </fieldset>
           <div class="nav"><button type="button" class="btn btn-ghost" data-prev>→ برگشت</button><button type="button" class="btn btn-volt finishBtn">ساخت برنامه ✓</button></div>
         </div>
@@ -829,25 +845,32 @@ const EN_TEXT = {
   "میانگین خواب شبانه (ساعت) *": "Average nightly sleep (hours) *",
   "ساعت هوشمند داری؟ *": "Do you have a smartwatch? *",
   "چند روز در هفته می‌توانی باشگاه بروی؟ *": "How many days per week can you go to the gym? *",
+  "چند روز در هفته می‌توانی تمرین کنی؟ *": "How many days per week can you work out? *",
   "۲ روز": "2 days",
   "۳ روز": "3 days",
   "۴ روز": "4 days",
   "۵ روز": "5 days",
   "هر جلسه باشگاه چند دقیقه؟ *": "How many minutes per gym session? *",
+  "هر جلسه تمرین چند دقیقه؟ *": "How many minutes per workout session? *",
   "۴۵ دقیقه": "45 min",
   "۶۰ دقیقه": "60 min",
   "۷۵ دقیقه": "75 min",
   "۹۰ دقیقه": "90 min",
   "تجهیزات در دسترس *": "Available equipment *",
   "(حداقل یک گزینه)": "(at least one)",
+  "کجا تمرین می‌کنی؟ *": "Where do you train? *",
+  "باشگاه": "Gym",
+  "خونه": "Home",
   "هالتر": "Barbell",
   "دمبل": "Dumbbell",
   "دستگاه سیم‌کش": "Cable machine",
   "میله بارفیکس": "Pull-up bar",
   "کش": "Resistance bands",
   "کتل‌بل": "Kettlebell",
+  "تی‌آر‌ایکس": "TRX",
+  "نیمکت/صندلی": "Bench/chair",
   "فقط وزن بدن": "Bodyweight only",
-  "لطفاً خواب، روزهای تمرین، مدت جلسه و تجهیزات را مشخص نمایید.": "Please set sleep, training days, session length and equipment.",
+  "لطفاً خواب، روزهای تمرین، مدت جلسه، محل تمرین و تجهیزات را مشخص نمایید.": "Please set sleep, training days, session length, training place and equipment.",
   "اندازه‌ها و توزیع چربی": "Measurements & fat distribution",
   "همه موارد این بخش اختیاری است؛ هر چه را داری وارد کن تا برآورد دقیق‌تر شود.": "Everything in this section is optional; enter what you have for a more accurate estimate.",
   "دور کمر (سانتی‌متر)": "Waist (cm)",
@@ -1187,6 +1210,7 @@ function validateKey(key){
     if(!radioVal("watch")) miss("ساعت هوشمند", "smartwatch");
     if(!radioVal("days")) miss("روزهای تمرین", "training days");
     if(!radioVal("minutes")) miss("مدت جلسه", "session length");
+    if(!radioVal("trainPlace")) miss("محل تمرین", "training place");
     // equipment is checkboxes since v1.5 — at least one must be ticked.
     if($$('input[name="equipment"]:checked').length === 0) miss("تجهیزات", "equipment");
     errId = "errRec";
@@ -1217,6 +1241,35 @@ $("#form").addEventListener("input", () => {
   if(document.querySelector(".step.active .err.show")) validateKey(pathDef().steps[curIdx]);
 });
 
+/* Training place → equipment list: gym shows the gym checklist, home shows
+ * the home checklist. Switching place clears the selection so stale values
+ * can't leak into validation or the payload. */
+function syncEquipList(){
+  const place = radioVal("trainPlace");
+  const wrap = $("#equipWrap"), g = $("#equipGym"), h = $("#equipHome");
+  if(!wrap || !g || !h) return;
+  wrap.style.display = place ? "" : "none";
+  g.style.display = place === "home" ? "none" : "";
+  h.style.display = place === "home" ? "" : "none";
+  const hiddenEl = place === "home" ? g : h;
+  hiddenEl.querySelectorAll('input[name="equipment"]').forEach(c => { c.checked = false; });
+  /* Training-frequency labels follow the place: home users see "تمرین" not "باشگاه".
+     _origText caches the source string for translateStatic — update the cache too. */
+  const swapLabel = (id, faGym, faHome) => {
+    const el = document.getElementById(id);
+    if(!el || !el.firstChild) return;
+    const fa = place === "home" ? faHome : faGym;
+    _origText.set(el.firstChild, fa);
+    el.firstChild.nodeValue = EN() ? (EN_TEXT[fa] || fa) : fa;
+  };
+  swapLabel("daysLabel", "چند روز در هفته می‌توانی باشگاه بروی؟ *", "چند روز در هفته می‌توانی تمرین کنی؟ *");
+  swapLabel("minsLabel", "هر جلسه باشگاه چند دقیقه؟ *", "هر جلسه تمرین چند دقیقه؟ *");
+  if(pathDef().steps[curIdx] === "recovery" && document.querySelector(".step.active .err.show")) validateKey("recovery");
+}
+document.addEventListener("change", e => {
+  if(e.target && e.target.name === "trainPlace") syncEquipList();
+});
+
 $$('input[name="ptype"]').forEach(r => r.addEventListener("change", () => {
   curPath = radioVal("ptype") || "gym";
   if(curIdx === 0) showStep(0);
@@ -1233,18 +1286,18 @@ $$("[data-prev]").forEach(b => b.addEventListener("click", () => showStep(curIdx
    EXERCISE ENGINE
 ================================================================ */
 const EX_DB = {
-  squat:     { name:"اسکوات با وزنه (تکنیک‌محور)", sets:"۳ ست × ۸–۱۰ تکرار کنترل‌شده", note:"زانوها در راستای پنجه؛ عمق تا موازات ران", nameEn:"Weighted squat (technique-first)", setsEn:"3 sets × 8–10 controlled reps", noteEn:"Knees track over toes; depth to parallel", video:"https://musclewiki.com/exercise/barbell-squat" },
-  deadlift:  { name:"ددلیفت رومانیایی", sets:"۳ ست × ۸–۱۰ تکرار", note:"کمر صاف، حرکت از مفصل ران", nameEn:"Romanian deadlift", setsEn:"3 sets × 8–10 reps", noteEn:"Flat back, hinge from the hips", video:"https://musclewiki.com/exercise/romanian-deadlift" },
-  bench:     { name:"پرس سینه دمبل", sets:"۳ ست × ۸–۱۲ تکرار", note:"کتف‌ها عقب و پایین؛ آرنج ۴۵ درجه", nameEn:"Dumbbell bench press", setsEn:"3 sets × 8–12 reps", noteEn:"Shoulders back and down; elbows at 45°", video:"https://musclewiki.com/exercise/dumbbell-bench-press" },
-  row:       { name:"زیربغل سیم‌کش / بارفیکس کمکی", sets:"۳ ست × ۸–۱۲ تکرار", note:"انقباض ۱ ثانیه‌ای بین دو کتف", nameEn:"Cable row / assisted pull-up", setsEn:"3 sets × 8–12 reps", noteEn:"Squeeze 1s between the shoulder blades", video:"" },
-  ohp:       { name:"پرس سرشانه دمبل نشسته", sets:"۳ ست × ۸–۱۰ تکرار", note:"کمر به صندلی چسبیده؛ قوس نده", nameEn:"Seated dumbbell shoulder press", setsEn:"3 sets × 8–10 reps", noteEn:"Back glued to the bench; don't arch", video:"https://musclewiki.com/exercise/dumbbell-seated-overhead-press" },
-  lunge:     { name:"لانج قدم‌زنی", sets:"۳ ست × ۱۰ قدم هر پا", note:"زانوی جلو از پنجه جلوتر نرود", nameEn:"Walking lunge", setsEn:"3 sets × 10 steps per leg", noteEn:"Front knee must not pass the toes", video:"" },
-  plank:     { name:"پلانک", sets:"۳ ست × ۳۰–۴۵ ثانیه", note:"بدن یک خط مستقیم؛ باسن بالا نرود", nameEn:"Plank", setsEn:"3 sets × 30–45 seconds", noteEn:"Body in one straight line; hips don't rise", video:"https://musclewiki.com/exercise/plank" },
-  facepull:  { name:"فیس‌پول با طناب", sets:"۳ ست × ۱۲–۱۵ تکرار", note:"چرخش خارجی آرنج در انتها", nameEn:"Rope face pull", setsEn:"3 sets × 12–15 reps", noteEn:"External rotation at the end", video:"" },
-  rotCable:  { name:"وودچاپ کابل مورب", sets:"۳ ست × ۱۰ تکرار هر سمت", note:"چرخش از تنه، نه از دست", nameEn:"Diagonal cable wood-chop", setsEn:"3 sets × 10 reps per side", noteEn:"Rotate from the trunk, not the arms", tag:"padel", video:"" },
-  bulgarian: { name:"اسپلیت اسکوات بلغاری", sets:"۳ ست × ۸–۱۰ تکرار هر پا", note:"پاشنه پای جلو محکم به زمین", nameEn:"Bulgarian split squat", setsEn:"3 sets × 8–10 reps per leg", noteEn:"Front heel planted firmly", tag:"padel", video:"https://musclewiki.com/exercise/bulgarian-split-squat" },
-  wristArmor:{ name:"تقویت مچ (ایزومتریک)", sets:"۳ ست × ۲۰ ثانیه", note:"مچ صاف و بدون لرزش", nameEn:"Wrist strengthening (isometric)", setsEn:"3 sets × 20 seconds", noteEn:"Wrist straight, no shaking", tag:"prev", video:"" },
-  mobility:  { name:"روتین موبیلیتی خانگی (۱۰–۱۵ دقیقه)", sets:"روزانه", note:"شانه، لگن، مچ پا؛ بدون وزنه", nameEn:"Home mobility routine (10–15 min)", setsEn:"Daily", noteEn:"Shoulders, hips, ankles; no weights", video:"" }
+  squat:     { name:"اسکوات با وزنه (تکنیک‌محور)", sets:"۳ ست × ۸–۱۰ تکرار کنترل‌شده", note:"زانوها در راستای پنجه؛ عمق تا موازات ران", nameEn:"Weighted squat (technique-first)", setsEn:"3 sets × 8–10 controlled reps", noteEn:"Knees track over toes; depth to parallel", video:"https://musclewiki.com/exercise/barbell-squat", eq:["barbell","dumbbell"] },
+  deadlift:  { name:"ددلیفت رومانیایی", sets:"۳ ست × ۸–۱۰ تکرار", note:"کمر صاف، حرکت از مفصل ران", nameEn:"Romanian deadlift", setsEn:"3 sets × 8–10 reps", noteEn:"Flat back, hinge from the hips", video:"https://musclewiki.com/exercise/romanian-deadlift", eq:["barbell","dumbbell"] },
+  bench:     { name:"پرس سینه دمبل", sets:"۳ ست × ۸–۱۲ تکرار", note:"کتف‌ها عقب و پایین؛ آرنج ۴۵ درجه", nameEn:"Dumbbell bench press", setsEn:"3 sets × 8–12 reps", noteEn:"Shoulders back and down; elbows at 45°", video:"https://musclewiki.com/exercise/dumbbell-bench-press", eq:["dumbbell"] },
+  row:       { name:"زیربغل سیم‌کش / بارفیکس کمکی", sets:"۳ ست × ۸–۱۲ تکرار", note:"انقباض ۱ ثانیه‌ای بین دو کتف", nameEn:"Cable row / assisted pull-up", setsEn:"3 sets × 8–12 reps", noteEn:"Squeeze 1s between the shoulder blades", video:"", eq:["cable","pullup","band"] },
+  ohp:       { name:"پرس سرشانه دمبل نشسته", sets:"۳ ست × ۸–۱۰ تکرار", note:"کمر به صندلی چسبیده؛ قوس نده", nameEn:"Seated dumbbell shoulder press", setsEn:"3 sets × 8–10 reps", noteEn:"Back glued to the bench; don't arch", video:"https://musclewiki.com/exercise/dumbbell-seated-overhead-press", eq:["dumbbell"] },
+  lunge:     { name:"لانج قدم‌زنی", sets:"۳ ست × ۱۰ قدم هر پا", note:"زانوی جلو از پنجه جلوتر نرود", nameEn:"Walking lunge", setsEn:"3 sets × 10 steps per leg", noteEn:"Front knee must not pass the toes", video:"", eq:["bodyweight","dumbbell"] },
+  plank:     { name:"پلانک", sets:"۳ ست × ۳۰–۴۵ ثانیه", note:"بدن یک خط مستقیم؛ باسن بالا نرود", nameEn:"Plank", setsEn:"3 sets × 30–45 seconds", noteEn:"Body in one straight line; hips don't rise", video:"https://musclewiki.com/exercise/plank", eq:["bodyweight"] },
+  facepull:  { name:"فیس‌پول با طناب", sets:"۳ ست × ۱۲–۱۵ تکرار", note:"چرخش خارجی آرنج در انتها", nameEn:"Rope face pull", setsEn:"3 sets × 12–15 reps", noteEn:"External rotation at the end", video:"", eq:["cable","band"] },
+  rotCable:  { name:"وودچاپ کابل مورب", sets:"۳ ست × ۱۰ تکرار هر سمت", note:"چرخش از تنه، نه از دست", nameEn:"Diagonal cable wood-chop", setsEn:"3 sets × 10 reps per side", noteEn:"Rotate from the trunk, not the arms", tag:"padel", video:"", eq:["cable","band"] },
+  bulgarian: { name:"اسپلیت اسکوات بلغاری", sets:"۳ ست × ۸–۱۰ تکرار هر پا", note:"پاشنه پای جلو محکم به زمین", nameEn:"Bulgarian split squat", setsEn:"3 sets × 8–10 reps per leg", noteEn:"Front heel planted firmly", tag:"padel", video:"https://musclewiki.com/exercise/bulgarian-split-squat", eq:["bodyweight","dumbbell"] },
+  wristArmor:{ name:"تقویت مچ (ایزومتریک)", sets:"۳ ست × ۲۰ ثانیه", note:"مچ صاف و بدون لرزش", nameEn:"Wrist strengthening (isometric)", setsEn:"3 sets × 20 seconds", noteEn:"Wrist straight, no shaking", tag:"prev", video:"", eq:["bodyweight"] },
+  mobility:  { name:"روتین موبیلیتی خانگی (۱۰–۱۵ دقیقه)", sets:"روزانه", note:"شانه، لگن، مچ پا؛ بدون وزنه", nameEn:"Home mobility routine (10–15 min)", setsEn:"Daily", noteEn:"Shoulders, hips, ankles; no weights", video:"", eq:["bodyweight"] }
 };
 
 const GOAL_TXT = { padel:"آمادگی پدل", fatloss:"چربی‌سوزی", muscle:"حجم عضلانی", strength:"قدرت پایه", health:"سلامت عمومی" };
@@ -1255,8 +1308,8 @@ const FATZONE_TXT = { belly:"شکم و پهلو", hips:"باسن و ران", che
 const FATZONE_TXT_EN = { belly:"Belly & flanks", hips:"Hips & thighs", chest:"Chest", arms:"Arms", back:"Lower back & back" };
 const WEAKMUSCLE_TXT = { chest:"سینه", back:"پشت", legs:"پا", shoulders:"سرشانه", arms:"بازو", abs:"شکم و پهلو" };
 const WEAKMUSCLE_TXT_EN = { chest:"Chest", back:"Back", legs:"Legs", shoulders:"Shoulders", arms:"Arms", abs:"Belly & flanks" };
-const EQUIP_TXT = { barbell:"هالتر", dumbbell:"دمبل", cable:"دستگاه سیم‌کش", pullup:"میله بارفیکس", band:"کش", kettlebell:"کتل‌بل", bodyweight:"فقط وزن بدن" };
-const EQUIP_TXT_EN = { barbell:"Barbell", dumbbell:"Dumbbell", cable:"Cable machine", pullup:"Pull-up bar", band:"Resistance bands", kettlebell:"Kettlebell", bodyweight:"Bodyweight only" };
+const EQUIP_TXT = { barbell:"هالتر", dumbbell:"دمبل", cable:"دستگاه سیم‌کش", pullup:"میله بارفیکس", band:"کش", kettlebell:"کتل‌بل", trx:"تی‌آر‌ایکس", bench:"نیمکت/صندلی", bodyweight:"فقط وزن بدن" };
+const EQUIP_TXT_EN = { barbell:"Barbell", dumbbell:"Dumbbell", cable:"Cable machine", pullup:"Pull-up bar", band:"Resistance bands", kettlebell:"Kettlebell", trx:"TRX", bench:"Bench/chair", bodyweight:"Bodyweight only" };
 const SMOKE_TXT = { no:"نه", sometimes:"گاهی", daily:"روزانه" };
 const SMOKE_TXT_EN = { no:"No", sometimes:"Occasionally", daily:"Daily" };
 const fatzoneLabel = k => (EN() ? FATZONE_TXT_EN : FATZONE_TXT)[k] || k;
@@ -1300,6 +1353,7 @@ function calculateProfile(){
     rf: { chest: radioVal("rfChest"), faint: radioVal("rfFaint"), cond: radioVal("rfCond"), doc: radioVal("rfDoc") },
     watch: radioVal("watch"),
     equipment: $$('input[name="equipment"]:checked').map(c => c.value),
+    trainPlace: radioVal("trainPlace"),
     trainDays: radioVal("trainDays"),
     smoke: radioVal("smoke"),
     prBench: parseNum($("#fPRBench").value) || null,
@@ -1396,19 +1450,72 @@ function renderResults(d){
     $("#resultLead").textContent = tx("این برنامه جهت بررسی و تأیید نهایی مربی آماده است.","This program is ready for the coach's final review and approval.");
   }
 
-  /* --- program table --- */
+  /* --- program table (equipment-adaptive) --- */
   const cons = isAI; // conservative for AI-only
+  // An exercise is usable when ANY of its eq tags is in the trainee's
+  // equipment; bodyweight-tagged exercises are always allowed. eq[0] is the
+  // PRIMARY equipment (the one the exercise name assumes).
+  const eqOk = (e, equip) => (e.eq || []).some(k => k === "bodyweight" || equip.includes(k));
+  // Home-friendly alternatives (preference order) when the main pick is filtered out.
+  const HOME_ALT = {
+    squat: [
+      { name:"گابلت اسکوات با دمبل", sets:"۳ ست × ۱۰–۱۲ تکرار", note:"دمبل جلوی سینه؛ زانوها در راستای پنجه", nameEn:"Goblet squat with dumbbell", setsEn:"3 sets × 10–12 reps", noteEn:"Dumbbell at chest; knees track over toes", eq:["dumbbell"], video:"" },
+      { name:"اسکوات وزن بدن", sets:"۳ ست × ۱۵–۲۰ تکرار", note:"عمق تا موازات ران", nameEn:"Bodyweight squat", setsEn:"3 sets × 15–20 reps", noteEn:"Depth to parallel", eq:["bodyweight"], video:"" }
+    ],
+    deadlift: [
+      { name:"ددلیفت رومانیایی با دمبل", sets:"۳ ست × ۱۰–۱۲ تکرار", note:"کمر صاف، حرکت از مفصل ران", nameEn:"Dumbbell Romanian deadlift", setsEn:"3 sets × 10–12 reps", noteEn:"Flat back, hinge from the hips", eq:["dumbbell"], video:"" },
+      { name:"گودمورنینگ وزن بدن", sets:"۳ ست × ۱۲–۱۵ تکرار", note:"کمر صاف؛ خم شدن از مفصل ران", nameEn:"Bodyweight good morning", setsEn:"3 sets × 12–15 reps", noteEn:"Flat back; hinge from the hips", eq:["bodyweight"], video:"" }
+    ],
+    bench: [
+      { name:"شنا (پوش‌آپ)", sets:"۳ ست × حداکثر تکرار", note:"بدن یک خط مستقیم", nameEn:"Push-ups", setsEn:"3 sets × max reps", noteEn:"Body in one straight line", eq:["bodyweight"], video:"" }
+    ],
+    row: [
+      { name:"زیربغل با کش", sets:"۳ ست × ۱۲–۱۵ تکرار", note:"کش به نقطه ثابت؛ انقباض بین دو کتف", nameEn:"Band rows", setsEn:"3 sets × 12–15 reps", noteEn:"Anchor the band; squeeze between shoulder blades", eq:["band"], video:"" },
+      { name:"زیر میله بارفیکس (اینورتد رو)", sets:"۳ ست × ۸–۱۲ تکرار", note:"بدن صاف مثل تخته", nameEn:"Inverted rows", setsEn:"3 sets × 8–12 reps", noteEn:"Body straight like a plank", eq:["pullup"], video:"" },
+      { name:"سوپرمن", sets:"۳ ست × ۱۲ تکرار", note:"۲ ثانیه مکث در بالا", nameEn:"Superman", setsEn:"3 sets × 12 reps", noteEn:"2s hold at the top", eq:["bodyweight"], video:"" }
+    ],
+    ohp: [
+      { name:"پرس سرشانه دمبل ایستاده", sets:"۳ ست × ۸–۱۰ تکرار", note:"قوس کمر نده", nameEn:"Standing dumbbell shoulder press", setsEn:"3 sets × 8–10 reps", noteEn:"Don't arch the lower back", eq:["dumbbell"], video:"" },
+      { name:"پوش‌آپ پایک", sets:"۳ ست × ۸–۱۲ تکرار", note:"باسن بالا؛ سر بین بازوها", nameEn:"Pike push-ups", setsEn:"3 sets × 8–12 reps", noteEn:"Hips high; head between arms", eq:["bodyweight"], video:"" }
+    ],
+    facepull: [
+      { name:"فیس‌پول با کش", sets:"۳ ست × ۱۲–۱۵ تکرار", note:"چرخش خارجی آرنج در انتها", nameEn:"Band face pull", setsEn:"3 sets × 12–15 reps", noteEn:"External rotation at the end", eq:["band"], video:"" }
+    ],
+    rotCable: [
+      { name:"وودچاپ با کش", sets:"۳ ست × ۱۰ تکرار هر سمت", note:"چرخش از تنه، نه از دست", nameEn:"Band wood-chop", setsEn:"3 sets × 10 reps per side", noteEn:"Rotate from the trunk, not the arms", eq:["band"], video:"" },
+      { name:"چرخش روسی", sets:"۳ ست × ۱۵ تکرار هر سمت", note:"کمر صاف؛ چرخش کنترل‌شده", nameEn:"Russian twists", setsEn:"3 sets × 15 twists per side", noteEn:"Flat back; controlled rotation", eq:["bodyweight"], video:"" }
+    ]
+  };
+  let adapted = false;
+  const equip = d.equipment || [];
+  const pickRow = (key) => {
+    const e = EX_DB[key];
+    const eq = e.eq || [];
+    // Primary equipment available (or bodyweight) → original as named.
+    if(eq.length && (eq[0] === "bodyweight" || equip.includes(eq[0]))) return exRow(e, cons);
+    const alt = (HOME_ALT[key] || []).find(a => eqOk(a, equip));
+    if(alt){ adapted = true; return exRow(alt, cons); }
+    // Usable as-is but not with the primary gear, and no named alternative:
+    // keep the original only when it matches some selected equipment.
+    if(eqOk(e, equip)) return exRow(e, cons);
+    adapted = true;
+    return exRow(e, cons); // last resort: original — the coach sees the equipment and adjusts
+  };
   let progRows = "";
   if(isPadel){
     progRows =
-      exRow(EX_DB.rotCable, cons) + exRow(EX_DB.bulgarian, cons) + exRow(EX_DB.facepull, cons) +
-      exRow(EX_DB.wristArmor, cons) + exRow(EX_DB.mobility, cons);
+      pickRow("rotCable") + pickRow("bulgarian") + pickRow("facepull") +
+      pickRow("wristArmor") + pickRow("mobility");
   } else {
     progRows =
-      exRow(EX_DB.squat, cons) + exRow(EX_DB.bench, cons) + exRow(EX_DB.row, cons) +
-      exRow(EX_DB.ohp, cons) + exRow(EX_DB.deadlift, cons) + exRow(EX_DB.lunge, cons) + exRow(EX_DB.plank, cons);
-    if(showPadel) progRows += exRow(EX_DB.rotCable, cons) + exRow(EX_DB.facepull, cons) + exRow(EX_DB.wristArmor, cons);
+      pickRow("squat") + pickRow("bench") + pickRow("row") +
+      pickRow("ohp") + pickRow("deadlift") + pickRow("lunge") + pickRow("plank");
+    if(showPadel) progRows += pickRow("rotCable") + pickRow("facepull") + pickRow("wristArmor");
   }
+  const adaptNote = adapted
+    ? '<p class="step-sub">🛠 ' + tx("برنامه بر اساس تجهیزات شما تنظیم شد", "Program adapted to your equipment") +
+      " (" + (d.trainPlace === "home" ? tx("خونه", "home") : tx("باشگاه", "gym")) + ").</p>"
+    : "";
   if(d.injury === "yes" && d.injuryZone === "knee"){
     progRows += '<tr><td colspan="2" style="color:var(--amber); font-size:13px">⚠ ' + tx("به‌دلیل سابقه زانو: اسکوات عمیق و لانج سنگین با پرس پا/ددلیفت رومانیایی جایگزین شود.","Knee history: replace deep squats and heavy lunges with leg press / Romanian deadlift.") + '</td></tr>';
   }
@@ -1431,7 +1538,7 @@ function renderResults(d){
     flagsHtml(d) + conservativeNote +
     '<div class="card"><h3>' + tx("برنامه تمرینی ","Training program ") + (isPadel ? tx("(تکمیلی پدل + موبیلیتی)","(padel supplementary + mobility)") : tx("(باشگاه)","(gym)")) + '</h3>' +
     '<div class="session"><div class="session-head"><b>' + tx("جلسات هفتگی","Weekly sessions") + '</b><span>' + faNum(d.gymDays) + tx(" روز × "," days × ") + faNum(d.minutes) + tx(" دقیقه"," min") + '</span></div>' +
-    '<table class="ex">' + progRows + "</table></div>" +
+    '<table class="ex">' + progRows + "</table>" + adaptNote + "</div>" +
     '<p class="step-sub">' + tx("کالری‌ها تخمینی‌اند (Mifflin-St Jeor)؛ مربی اعداد نهایی را تنظیم می‌کند.","Calories are estimates (Mifflin-St Jeor); the coach sets the final numbers.") + '</p></div>' +
     (isAI
       ? '<div class="flag red"><span class="ic">⚠</span><span><b>' + tx("سلب مسئولیت:","Disclaimer:") + '</b> ' + tx("این برنامه توسط هوش مصنوعی و بدون بررسی مربی تولید شده است. در صورت درد، سرگیجه یا تنگی نفس، تمرین را فوراً متوقف و به پزشک مراجعه کنید.","This program was generated by AI without coach review. If you feel pain, dizziness or shortness of breath, stop immediately and see a doctor.") + "</span></div>"
@@ -1461,6 +1568,7 @@ function renderResults(d){
     if(d.prSquat) prParts.push(tx("اسکوات","Squat") + " " + faNum(d.prSquat));
     if(d.prDead) prParts.push(tx("ددلیفت","Deadlift") + " " + faNum(d.prDead));
     if(prParts.length) tParts.push(tx("رکوردها","PRs") + " (kg): " + prParts.join(" · "));
+    if(d.trainPlace) tParts.push(tx("محل تمرین","Training place") + ": " + (d.trainPlace === "home" ? tx("خونه","Home") : tx("باشگاه","Gym")));
     if(d.equipment.length) tParts.push(tx("تجهیزات","Equipment") + ": " + d.equipment.map(equipLabel).join(tx("، ",", ")));
     const trainBlock = tParts.length
       ? "<h3>" + tx("پروفایل تمرینی","Training profile") + "</h3>" + '<ul class="tips">' + tParts.map(t => "<li>" + t + "</li>").join("") + "</ul>"
@@ -1559,6 +1667,7 @@ function collectSubmission(d){
   answers.fatZones = $$('input[name="fatZone"]:checked').map(c => c.value);
   answers.weakMuscles = $$('input[name="weakMuscle"]:checked').map(c => c.value);
   answers.equipment = $$('input[name="equipment"]:checked').map(c => c.value);
+  answers.trainPlace = radioVal("trainPlace");
   answers.trainDays = radioVal("trainDays");
   answers.smoke = radioVal("smoke");
   const injuries = [], surgeries = [];
