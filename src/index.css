@@ -1341,3 +1341,110 @@
   .upd-bar-ind { animation: none; }
   .upd-bar { transition: none; }
 }
+
+/* ============================================================
+ * «بشقاب روزانه» (Daily Plate) — trainee nutrition tab
+ * ============================================================ */
+.plate-hero { display: flex; justify-content: center; padding: 18px 12px; }
+.plate-score { position: relative; width: 96px; text-align: center; }
+.plate-ring { width: 96px; height: 96px; transform: rotate(-90deg); }
+.plate-ring-bg { fill: none; stroke: rgba(255,255,255,0.08); stroke-width: 9; }
+.plate-ring-fg {
+  fill: none; stroke: #d4ff00; stroke-width: 9; stroke-linecap: round;
+  filter: drop-shadow(0 0 6px rgba(212,255,0,0.55));
+  transition: stroke-dashoffset 0.5s ease;
+}
+.plate-score-num {
+  position: absolute; top: 26px; left: 0; right: 0;
+  font-size: 24px; font-weight: 800; color: #fff;
+}
+.plate-score-pct { font-size: 13px; color: rgba(255,255,255,0.6); }
+.plate-score-label { margin-top: 2px; font-size: 12px; color: rgba(255,255,255,0.65); }
+
+.plate-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+@media (max-width: 420px) { .plate-grid { grid-template-columns: 1fr; } }
+.plate-item { padding: 14px; }
+.plate-item-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.plate-item-name { font-size: 15px; font-weight: 800; color: #fff; }
+.plate-over-badge {
+  font-size: 11px; font-weight: 800; color: #ff9db8;
+  background: rgba(255,0,85,0.12); border: 1px solid rgba(255,0,85,0.45);
+  border-radius: 99px; padding: 3px 9px; white-space: nowrap;
+}
+.plate-item-target { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 4px; }
+.plate-bar {
+  height: 8px; border-radius: 99px; background: rgba(255,255,255,0.08);
+  margin: 10px 0 6px; overflow: hidden;
+}
+.plate-bar-fill {
+  height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, #00f0ff, #d4ff00);
+  box-shadow: 0 0 8px rgba(0,240,255,0.5);
+  transition: width 0.4s ease;
+}
+.plate-bar-fill.over { background: linear-gradient(90deg, #ff5c8a, #ff0055); box-shadow: 0 0 8px rgba(255,0,85,0.5); }
+.plate-amount { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.85); }
+.plate-controls { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.plate-step {
+  width: 40px; height: 40px; border-radius: 12px; font-size: 20px; font-weight: 800;
+  color: #0b0e13; background: linear-gradient(135deg, #d4ff00, #a8e600);
+  border: none; box-shadow: 0 2px 10px rgba(212,255,0,0.35);
+  cursor: pointer; transition: transform 0.12s ease;
+}
+.plate-step:active { transform: scale(0.93); }
+.plate-reset {
+  margin-inline-start: auto; font-size: 12px; font-weight: 700;
+  color: rgba(255,255,255,0.7); background: transparent;
+  border: 1px solid rgba(255,255,255,0.18); border-radius: 10px;
+  padding: 8px 12px; cursor: pointer;
+}
+.plate-reset:active { transform: scale(0.96); }
+.plate-more {
+  width: 100%; margin-top: 10px; font-size: 13px; font-weight: 800;
+  color: #00f0ff; background: rgba(0,240,255,0.07);
+  border: 1px solid rgba(0,240,255,0.4); border-radius: 10px;
+  padding: 9px; cursor: pointer; transition: transform 0.12s ease;
+}
+.plate-more:active { transform: scale(0.97); }
+
+.plate-rx { margin-top: 12px; padding: 14px; }
+.plate-rx-title { font-size: 14px; font-weight: 800; color: #fff; margin: 0 0 4px; }
+.plate-rx-hint { font-size: 11.5px; line-height: 1.8; color: rgba(255,255,255,0.55); margin: 0 0 10px; }
+.plate-rx-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 0; border-top: 1px solid rgba(255,255,255,0.06);
+  font-size: 13.5px; color: #fff; cursor: pointer;
+}
+.plate-rx-row input[type="checkbox"] { width: 19px; height: 19px; accent-color: #d4ff00; }
+.plate-rx-took { margin-inline-start: auto; font-size: 11.5px; color: rgba(255,255,255,0.5); }
+
+.plate-save { width: 100%; margin-top: 14px; }
+
+/* ============================================================
+ * «بشقاب روزانه» — coach panel editor + over-eating flag
+ * ============================================================ */
+.cp-plate-toggle { margin-top: 10px; }
+.plate-overflag { margin-top: 10px; }
+.cp-plate {
+  margin-top: 10px; padding: 12px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+}
+.cp-plate-row { display: grid; gap: 8px; margin-bottom: 10px; }
+.cp-plate-numrow { display: flex; gap: 8px; }
+.cp-plate-input {
+  width: 100%; background: rgba(255,255,255,0.05); color: #fff;
+  border: 1px solid rgba(255,255,255,0.14); border-radius: 10px;
+  padding: 9px 11px; font-size: 13.5px; font-family: inherit;
+}
+.cp-plate-input:focus { outline: none; border-color: rgba(0,240,255,0.6); }
+.cp-plate-target { flex: 1; }
+.cp-plate-unit { flex: 0 0 auto; }
+.cp-plate-unit option { background: #0b0e13; }
+.cp-plate-del {
+  flex: 0 0 auto; font-size: 12px; font-weight: 700; color: #ff9db8;
+  background: transparent; border: 1px solid rgba(255,0,85,0.4);
+  border-radius: 10px; padding: 8px 12px; cursor: pointer;
+}
+.cp-plate-add { width: 100%; margin-bottom: 12px; }
+.cp-plate-rx-title { font-size: 13.5px; font-weight: 800; color: #fff; margin: 4px 0 6px; }

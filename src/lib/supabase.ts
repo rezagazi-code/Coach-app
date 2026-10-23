@@ -1563,3 +1563,206 @@ if (typeof window !== 'undefined') {
     if (document.visibilityState === 'visible') void flushQueue();
   });
 }
+
+// --------------------------------------------------------------------------
+// «بشقاب روزانه» (Daily Plate) nutrition helpers (v8).
+// nutrition_targets is the v5 table extended by v8 with food_items +
+// prescriptions jsonb columns. nutrition_logs is the v8 per-day log.
+// All calls run under the caller's own session; RLS does the isolation:
+//   - coach: only rows whose coach_id is their own coach row
+//   - athlete: only their own athlete_id
+// --------------------------------------------------------------------------
+
+/** One food item in the coach's daily food program. */
+export interface NutritionFoodItem {
+  key: string;
+  label_fa: string;
+  label_en: string;
+  unit: 'g' | 'pcs' | 'cup' | 'ml';
+  target: number;
+}
+
+/**
+ * Doctor-prescribed supplement NAME ONLY. ⛔ Medication boundary: there is
+ * no dosage field by design — dosages belong to a doctor/pharmacist.
+ */
+export interface NutritionPrescription {
+  name_fa: string;
+  name_en: string;
+}
+
+export interface NutritionTargetsRow {
+  id: string;
+  athlete_id: string;
+  coach_id: string | null;
+  food_items: NutritionFoodItem[];
+  prescriptions: NutritionPrescription[];
+  effective_from: string;
+}
+
+/** One logged food item in the trainee's daily plate. */
+export interface NutritionLogItem {
+  key: string;
+  amount: number;
+  over: boolean;
+}
+
+export interface NutritionLog {
+  id: string;
+  athlete_id: string;
+  coach_id: string | null;
+  log_date: string; // date
+  items: NutritionLogItem[];
+  score: number;
+  created_at: string;
+}
+
+/** Today in the device's local timezone (YYYY-MM-DD). */
+export function localDateStr(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+const safeItems = (v: unknown): NutritionFoodItem[] =>
+  Array.isArray(v)
+    ? v.filter(
+        (x): x is NutritionFoodItem =>
+          !!x &&
+          typeof x === 'object' &&
+          typeof (x as { key?: unknown }).key === 'string' &&
+          typeof (x as { target?: unknown }).target === 'number'
+      )
+    : [];
+
+const safeRx = (v: unknown): NutritionPrescription[] =>
+  Array.isArray(v)
+    ? v.filter(
+        (x): x is NutritionPrescription =>
+          !!x &&
+          typeof x === 'object' &&
+          typeof (x as { name_fa?: unknown }).name_fa === 'string' &&
+          (x as { name_fa: string }).name_fa.trim() !== ''
+      )
+    : [];
+
+const safeLogItems = (v: unknown): NutritionLogItem[] =>
+  Array.isArray(v)
+    ? v.filter(
+        (x): x is NutritionLogItem =>
+          !!x &&
+          typeof x === 'object' &&
+          typeof (x as { key?: unknown }).key === 'string' &&
+          typeof (x as { amount?: unknown }).amount === 'number'
+      )
+    : [];
+
+/**
+ * The athlete's CURRENT food program: newest nutrition_targets row
+ * (effective_from ordering). Returns null when the coach set none.
+ */
+export async function latestNutritionTargetsFor(
+  athleteId: string
+): Promise<NutritionTargetsRow | null> {
+  const { data, error } = await requireClient()
+    .from('nutrition_targets')
+    .select('id, athlete_id, coach_id, food_items, prescriptions, effective_from')
+    .eq('athlete_id', athleteId)
+    .order('effective_from', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const row = data as NutritionTargetsRow;
+  return { ...row, food_items: safeItems(row.food_items), prescriptions: safeRx(row.prescriptions) };
+}
+
+/**
+ * Coach sets/replaces the athlete's daily food program. Upserts onto
+ * today's row (unique (athlete_id, effective_from)) so a coach editing
+ * twice in one day rewrites the same row; older days stay as history.
+ * The v5 macro columns are NOT NULL — they carry neutral defaults when
+ * the plate UI is the source of truth (food_items is what renders).
+ */
+export async function upsertNutritionTargets(input: {
+  athlete_id: string;
+  coach_id: string | null;
+  food_items: NutritionFoodItem[];
+  prescriptions: NutritionPrescription[];
+}): Promise<void> {
+  const { error } = await requireClient()
+    .from('nutrition_targets')
+    .upsert(
+      {
+        athlete_id: input.athlete_id,
+        coach_id: input.coach_id,
+        food_items: input.food_items,
+        prescriptions: input.prescriptions,
+        effective_from: localDateStr(),
+        // v5 macro columns: neutral defaults; the plate items are the
+        // coach's real program. water_ml/kcal must satisfy > 0 checks.
+        protein_g: 0,
+        carbs_g: 0,
+        fat_g: 0,
+        water_ml: 3000,
+        kcal: 1,
+      },
+      { onConflict: 'athlete_id,effective_from' }
+    );
+  if (error) throw error;
+}
+
+/**
+ * The athlete's most recent plate log within the last `daysBack` days
+ * (default 7). Used by the coach panel for the over-eating flag.
+ */
+export async function latestNutritionLogFor(
+  athleteId: string,
+  daysBack = 7
+): Promise<NutritionLog | null> {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - daysBack);
+  const { data, error } = await requireClient()
+    .from('nutrition_logs')
+    .select('id, athlete_id, coach_id, log_date, items, score, created_at')
+    .eq('athlete_id', athleteId)
+    .gte('log_date', localDateStr(cutoff))
+    .order('log_date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const row = data as NutritionLog;
+  return { ...row, items: safeLogItems(row.items) };
+}
+
+/**
+ * Trainee saves today's plate. Upserts on (athlete_id, log_date) so
+ * re-saving the same day rewrites it instead of duplicating.
+ */
+export async function upsertNutritionLog(input: {
+  athlete_id: string;
+  coach_id: string | null;
+  log_date: string;
+  items: NutritionLogItem[];
+  score: number;
+}): Promise<NutritionLog> {
+  const { data, error } = await requireClient()
+    .from('nutrition_logs')
+    .upsert(
+      {
+        athlete_id: input.athlete_id,
+        coach_id: input.coach_id,
+        log_date: input.log_date,
+        items: input.items,
+        score: Math.max(0, Math.min(100, Math.round(input.score))),
+      },
+      { onConflict: 'athlete_id,log_date' }
+    )
+    .select('id, athlete_id, coach_id, log_date, items, score, created_at')
+    .single();
+  if (error) throw error;
+  const row = data as NutritionLog;
+  return { ...row, items: safeLogItems(row.items) };
+}

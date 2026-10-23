@@ -27,12 +27,17 @@ import Toast from './Toast';
 import {
   decideReview,
   isSupabaseConfigured,
+  latestNutritionLogFor,
+  latestNutritionTargetsFor,
   latestProgramFor,
   listAthletes,
   listPendingReviews,
   questionnaireResponseForReview,
   updateProgramCoachNotes,
+  upsertNutritionTargets,
   type Athlete,
+  type NutritionFoodItem,
+  type NutritionPrescription,
   type Program,
   type Track,
 } from '../lib/supabase';
@@ -54,6 +59,50 @@ interface AthleteCard {
 }
 
 const NOTES_KEY = 'km.coachNotes.v1';
+
+// ---------------------------------------------------------------------------
+// «بشقاب روزانه» — coach-side nutrition program editor (per athlete).
+// ---------------------------------------------------------------------------
+
+interface PlateDraft {
+  items: NutritionFoodItem[];
+  rx: NutritionPrescription[];
+}
+
+const PLATE_COACH_LOCAL = 'km.plate.coach.v1';
+
+function readLocalPlates(): Record<string, PlateDraft> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PLATE_COACH_LOCAL) ?? '{}') as Record<
+      string,
+      PlateDraft
+    >;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeLocalPlates(plates: Record<string, PlateDraft>) {
+  try {
+    localStorage.setItem(PLATE_COACH_LOCAL, JSON.stringify(plates));
+  } catch {
+    /* ignore */
+  }
+}
+
+const UNITS: NutritionFoodItem['unit'][] = ['g', 'pcs', 'cup', 'ml'];
+
+function demoPlate(lang: Lang): PlateDraft {
+  const fa = lang === 'fa';
+  return {
+    items: [
+      { key: 'chicken', label_fa: 'مرغ (سینه)', label_en: 'Chicken breast', unit: 'g', target: 200 },
+      { key: 'rice', label_fa: 'برنج پخته', label_en: 'Cooked rice', unit: 'g', target: 300 },
+    ],
+    rx: [{ name_fa: fa ? 'ویتامین D' : 'Vitamin D', name_en: 'Vitamin D' }],
+  };
+}
 
 function readLocalNotes(): Record<string, string> {
   try {
@@ -229,6 +278,13 @@ export default function CoachPanel() {
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
   const localNotes = useRef<Record<string, string>>(readLocalNotes());
+  // «بشقاب روزانه» nutrition program state (per athlete).
+  const [plateOpen, setPlateOpen] = useState<Record<string, boolean>>({});
+  const [plateDrafts, setPlateDrafts] = useState<Record<string, PlateDraft>>({});
+  const [plateSaving, setPlateSaving] = useState<string | null>(null);
+  // athleteId -> labels of food items eaten OVER target in recent logs.
+  const [overFlags, setOverFlags] = useState<Record<string, string[]>>({});
+  const localPlates = useRef<Record<string, PlateDraft>>(readLocalPlates());
   // Guards the openDetail async fetch: an earlier card's response must not
   // overwrite the answers/flags of a card opened afterwards (coach taps A,
   // goes back, taps B — A's response resolving later would show A's
@@ -258,6 +314,20 @@ export default function CoachPanel() {
         }
         return next;
       });
+      // Demo nutrition: sample program on athlete-1 + an over-eating flag,
+      // so the coach sees the whole «بشقاب روزانه» loop in demo mode.
+      setPlateDrafts((prev) => {
+        const next = { ...prev };
+        for (const c of demoCards) {
+          if (!(c.athlete.id in next))
+            next[c.athlete.id] =
+              localPlates.current[c.athlete.id] ?? (c.athlete.id === 'demo-athlete-1' ? demoPlate(lang) : { items: [], rx: [] });
+        }
+        return next;
+      });
+      setOverFlags({
+        'demo-athlete-1': [lang === 'fa' ? 'مرغ (سینه)' : 'Chicken breast'],
+      });
       setLoading(false);
       return;
     }
@@ -281,6 +351,40 @@ export default function CoachPanel() {
         }))
       );
       setCards(withPrograms);
+      // «بشقاب روزانه»: per athlete, load the current program (for the
+      // editor drafts + resolving over-eating keys to labels) and the
+      // latest daily log (for the over-eating red flag).
+      void (async () => {
+        const draftsNext: Record<string, PlateDraft> = {};
+        const overNext: Record<string, string[]> = {};
+        await Promise.all(
+          withPrograms.map(async (c) => {
+            try {
+              const [targets, log] = await Promise.all([
+                latestNutritionTargetsFor(c.athlete.id).catch(() => null),
+                latestNutritionLogFor(c.athlete.id, 3).catch(() => null),
+              ]);
+              const items = targets?.food_items ?? [];
+              const rx = targets?.prescriptions ?? [];
+              draftsNext[c.athlete.id] = {
+                items: localPlates.current[c.athlete.id]?.items ?? items,
+                rx: localPlates.current[c.athlete.id]?.rx ?? rx,
+              };
+              if (log) {
+                const overKeys = new Set(log.items.filter((i) => i.over).map((i) => i.key));
+                const labels = items
+                  .filter((it) => overKeys.has(it.key))
+                  .map((it) => (lang === 'fa' ? it.label_fa : it.label_en));
+                if (labels.length > 0) overNext[c.athlete.id] = labels;
+              }
+            } catch (err) {
+              console.error('[coach-panel] nutrition load failed', err);
+            }
+          })
+        );
+        setPlateDrafts((prev) => ({ ...draftsNext, ...prev }));
+        setOverFlags(overNext);
+      })();
       // Seed note drafts once per athlete: the program's saved note wins,
       // then the locally-kept note. Never overwrite an in-progress draft.
       setDrafts((prev) => {
@@ -409,6 +513,109 @@ export default function CoachPanel() {
           month: 'short',
         })
       : '—';
+
+  // ------------------------------------------------- «بشقاب روزانه» editor
+
+  const patchPlateItem = useCallback(
+    (athleteId: string, idx: number, patch: Partial<NutritionFoodItem>) => {
+      setPlateDrafts((prev) => {
+        const draft = prev[athleteId] ?? { items: [], rx: [] };
+        const items = draft.items.map((it, i) => (i === idx ? { ...it, ...patch } : it));
+        return { ...prev, [athleteId]: { ...draft, items } };
+      });
+    },
+    []
+  );
+
+  const addPlateItem = useCallback((athleteId: string) => {
+    setPlateDrafts((prev) => {
+      const draft = prev[athleteId] ?? { items: [], rx: [] };
+      const blank: NutritionFoodItem = {
+        key: `k${Date.now()}`,
+        label_fa: '',
+        label_en: '',
+        unit: 'g',
+        target: 100,
+      };
+      return { ...prev, [athleteId]: { ...draft, items: [...draft.items, blank] } };
+    });
+  }, []);
+
+  const removePlateItem = useCallback((athleteId: string, idx: number) => {
+    setPlateDrafts((prev) => {
+      const draft = prev[athleteId] ?? { items: [], rx: [] };
+      return { ...prev, [athleteId]: { ...draft, items: draft.items.filter((_, i) => i !== idx) } };
+    });
+  }, []);
+
+  const patchRx = useCallback(
+    (athleteId: string, idx: number, patch: Partial<NutritionPrescription>) => {
+      setPlateDrafts((prev) => {
+        const draft = prev[athleteId] ?? { items: [], rx: [] };
+        const rx = draft.rx.map((p, i) => (i === idx ? { ...p, ...patch } : p));
+        return { ...prev, [athleteId]: { ...draft, rx } };
+      });
+    },
+    []
+  );
+
+  const addRx = useCallback((athleteId: string) => {
+    setPlateDrafts((prev) => {
+      const draft = prev[athleteId] ?? { items: [], rx: [] };
+      return { ...prev, [athleteId]: { ...draft, rx: [...draft.rx, { name_fa: '', name_en: '' }] } };
+    });
+  }, []);
+
+  const removeRx = useCallback((athleteId: string, idx: number) => {
+    setPlateDrafts((prev) => {
+      const draft = prev[athleteId] ?? { items: [], rx: [] };
+      return { ...prev, [athleteId]: { ...draft, rx: draft.rx.filter((_, i) => i !== idx) } };
+    });
+  }, []);
+
+  const savePlate = useCallback(
+    async (card: AthleteCard) => {
+      const athleteId = card.athlete.id;
+      const draft = plateDrafts[athleteId] ?? { items: [], rx: [] };
+      const items: NutritionFoodItem[] = draft.items
+        .filter((it) => it.label_fa.trim() !== '' && it.target > 0)
+        .map((it, i) => ({
+          ...it,
+          key: it.key || `k${Date.now()}-${i}`,
+          label_fa: it.label_fa.trim(),
+          label_en: it.label_en.trim() || it.label_fa.trim(),
+        }));
+      const rx: NutritionPrescription[] = draft.rx
+        .filter((p) => p.name_fa.trim() !== '')
+        .map((p) => ({
+          name_fa: p.name_fa.trim(),
+          name_en: p.name_en.trim() || p.name_fa.trim(),
+        }));
+      setPlateSaving(athleteId);
+      // Always keep a local copy (demo mode store + fallback).
+      localPlates.current = { ...localPlates.current, [athleteId]: { items, rx } };
+      writeLocalPlates(localPlates.current);
+      setPlateDrafts((prev) => ({ ...prev, [athleteId]: { items, rx } }));
+      if (!isSupabaseConfigured) {
+        showToast(t('cp.nutritionSaved'));
+      } else {
+        try {
+          await upsertNutritionTargets({
+            athlete_id: athleteId,
+            coach_id: auth.coach?.id ?? null,
+            food_items: items,
+            prescriptions: rx,
+          });
+          showToast(t('cp.nutritionSaved'));
+        } catch (err) {
+          console.error('[coach-panel] nutrition save failed', err);
+          showToast(t('cp.actionError'));
+        }
+      }
+      setPlateSaving(null);
+    },
+    [plateDrafts, showToast, t, auth.coach]
+  );
 
   const fmtVal = (v: unknown): string => {
     if (v === null || v === undefined || v === '') return '—';
@@ -637,6 +844,141 @@ export default function CoachPanel() {
               >
                 {savingNoteFor === c.athlete.id ? t('auth.pleaseWait') : t('cp.saveNote')}
               </button>
+
+              {(overFlags[c.athlete.id]?.length ?? 0) > 0 && (
+                <span className="cp-redflag plate-overflag" role="alert">
+                  🍽 {t('cp.nutritionOver')}: {overFlags[c.athlete.id].join(lang === 'fa' ? '، ' : ', ')}
+                  {' — '}
+                  {t('cp.nutritionOverHint')}
+                </span>
+              )}
+
+              <button
+                type="button"
+                className="btn-ghost cp-plate-toggle"
+                aria-expanded={!!plateOpen[c.athlete.id]}
+                onClick={() =>
+                  setPlateOpen((prev) => ({ ...prev, [c.athlete.id]: !prev[c.athlete.id] }))
+                }
+              >
+                🍽 {t('cp.nutritionTitle')}
+              </button>
+
+              {plateOpen[c.athlete.id] &&
+                (() => {
+                  const draft = plateDrafts[c.athlete.id] ?? { items: [], rx: [] };
+                  return (
+                    <div className="cp-plate">
+                      {draft.items.length === 0 && (
+                        <p className="cp-empty">{t('cp.nutritionEmpty')}</p>
+                      )}
+                      {draft.items.map((it, i) => (
+                        <div className="cp-plate-row" key={it.key || i}>
+                          <input
+                            className="cp-plate-input"
+                            value={it.label_fa}
+                            placeholder={t('cp.nutritionNameFa')}
+                            onChange={(e) => patchPlateItem(c.athlete.id, i, { label_fa: e.target.value })}
+                          />
+                          <input
+                            className="cp-plate-input"
+                            value={it.label_en}
+                            placeholder={t('cp.nutritionNameEn')}
+                            dir="ltr"
+                            onChange={(e) => patchPlateItem(c.athlete.id, i, { label_en: e.target.value })}
+                          />
+                          <div className="cp-plate-numrow">
+                            <input
+                              className="cp-plate-input cp-plate-target"
+                              value={it.target === 0 ? '' : String(it.target)}
+                              placeholder={t('cp.nutritionTarget')}
+                              inputMode="numeric"
+                              onChange={(e) => {
+                                const n = Number(faDigitsToLatin(e.target.value.trim()));
+                                patchPlateItem(c.athlete.id, i, {
+                                  target: Number.isFinite(n) && n >= 0 ? n : 0,
+                                });
+                              }}
+                            />
+                            <select
+                              className="cp-plate-input cp-plate-unit"
+                              value={it.unit}
+                              aria-label={t('cp.nutritionUnit')}
+                              onChange={(e) =>
+                                patchPlateItem(c.athlete.id, i, {
+                                  unit: e.target.value as NutritionFoodItem['unit'],
+                                })
+                              }
+                            >
+                              {UNITS.map((u) => (
+                                <option key={u} value={u}>
+                                  {t(`n.unit.${u}`)}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              className="cp-plate-del"
+                              onClick={() => removePlateItem(c.athlete.id, i)}
+                            >
+                              {t('cp.nutritionRemove')}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="btn-ghost cp-plate-add"
+                        onClick={() => addPlateItem(c.athlete.id)}
+                      >
+                        + {t('cp.nutritionAdd')}
+                      </button>
+
+                      <h4 className="cp-plate-rx-title">💊 {t('cp.rxTitle')}</h4>
+                      <p className="auth-hint">{t('cp.rxHint')}</p>
+                      {draft.rx.map((p, i) => (
+                        <div className="cp-plate-row" key={i}>
+                          <input
+                            className="cp-plate-input"
+                            value={p.name_fa}
+                            placeholder={t('cp.nutritionNameFa')}
+                            onChange={(e) => patchRx(c.athlete.id, i, { name_fa: e.target.value })}
+                          />
+                          <input
+                            className="cp-plate-input"
+                            value={p.name_en}
+                            placeholder={t('cp.nutritionNameEn')}
+                            dir="ltr"
+                            onChange={(e) => patchRx(c.athlete.id, i, { name_en: e.target.value })}
+                          />
+                          <button
+                            type="button"
+                            className="cp-plate-del"
+                            onClick={() => removeRx(c.athlete.id, i)}
+                          >
+                            {t('cp.nutritionRemove')}
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="btn-ghost cp-plate-add"
+                        onClick={() => addRx(c.athlete.id)}
+                      >
+                        + {t('cp.rxAdd')}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn-primary cp-save"
+                        disabled={plateSaving === c.athlete.id}
+                        onClick={() => void savePlate(c)}
+                      >
+                        {plateSaving === c.athlete.id ? t('auth.pleaseWait') : t('cp.nutritionSave')}
+                      </button>
+                    </div>
+                  );
+                })()}
             </div>
           ))
         )}
