@@ -497,6 +497,76 @@
               <label for="fCondition">بیماری یا داروی خاص <span class="hint">(اختیاری — فشار خون، آسم، دیابت و...)</span></label>
               <textarea id="fCondition" placeholder="در صورت وجود درج نمایید..."></textarea>
             </div>
+            <div id="suppBlock" style="margin-top:22px; padding-top:16px; border-top:1px solid rgba(255,255,255,.08)">
+              <div class="field">
+                <label style="font-size:16px; font-weight:800">مکمل‌ها و ریزمغذی‌ها *</label>
+                <p class="step-sub">فقط غربالگری — اپ هیچ مکملی تجویز نمی‌کند.</p>
+              </div>
+              <div class="field" style="margin-top:12px">
+                <label>در حال حاضر مکمل مصرف می‌کنی؟ *</label>
+                <div class="choices cols2">
+                  <label class="choice"><input type="radio" name="suppUse" value="no" /><span class="box">نه</span></label>
+                  <label class="choice"><input type="radio" name="suppUse" value="yes" /><span class="box">بله</span></label>
+                </div>
+              </div>
+              <div class="cond" id="suppBox">
+                <div class="field">
+                  <label for="fSuppList">کدام‌ها؟ *</label>
+                  <input type="text" id="fSuppList" placeholder="مثلاً: پروتئین وی، کراتین" />
+                </div>
+              </div>
+              <div class="field" style="margin-top:16px">
+                <label>داروی خاصی مصرف می‌کنی؟ *</label>
+                <div class="choices cols2">
+                  <label class="choice"><input type="radio" name="medsUse" value="no" /><span class="box">نه</span></label>
+                  <label class="choice"><input type="radio" name="medsUse" value="yes" /><span class="box">بله</span></label>
+                </div>
+              </div>
+              <div class="cond" id="medsBox">
+                <div class="field">
+                  <label for="fMedsList">کدام دارو؟ *</label>
+                  <input type="text" id="fMedsList" placeholder="نام دارو را بنویسید" />
+                </div>
+              </div>
+              <div class="field" style="margin-top:16px">
+                <label>رژیم غذایی خاصی داری؟ *</label>
+                <div class="choices cols2">
+                  <label class="choice"><input type="radio" name="dietType" value="none" /><span class="box">نه</span></label>
+                  <label class="choice"><input type="radio" name="dietType" value="vegetarian" /><span class="box">گیاه‌خوار</span></label>
+                  <label class="choice"><input type="radio" name="dietType" value="vegan" /><span class="box">وگن</span></label>
+                  <label class="choice"><input type="radio" name="dietType" value="keto" /><span class="box">کتوژنیک</span></label>
+                  <label class="choice"><input type="radio" name="dietType" value="fasting" /><span class="box">فستینگ</span></label>
+                </div>
+              </div>
+              <div class="field" style="margin-top:16px">
+                <label>روزانه چقدر آفتاب مستقیم می‌گیری؟ *</label>
+                <div class="choices cols2">
+                  <label class="choice"><input type="radio" name="sun" value="low" /><span class="box">کمتر از ۱۵ دقیقه</span></label>
+                  <label class="choice"><input type="radio" name="sun" value="mid" /><span class="box">۱۵ تا ۳۰ دقیقه</span></label>
+                  <label class="choice"><input type="radio" name="sun" value="high" /><span class="box">بیشتر از ۳۰ دقیقه</span></label>
+                </div>
+              </div>
+              <div class="field" style="margin-top:16px">
+                <label>کمبود ویتامین یا ماده معدنی تشخیص‌داده‌شده داری؟ *</label>
+                <div class="choices cols2">
+                  <label class="choice"><input type="radio" name="diagDef" value="no" /><span class="box">نه</span></label>
+                  <label class="choice"><input type="radio" name="diagDef" value="yes" /><span class="box">بله</span></label>
+                </div>
+              </div>
+              <div class="cond" id="diagBox">
+                <div class="field">
+                  <label for="fDiagList">کدام‌ها؟ (مثل آهن، D، B12) *</label>
+                  <input type="text" id="fDiagList" placeholder="مثلاً: آهن، ویتامین D" />
+                </div>
+              </div>
+              <div class="field" style="margin-top:16px">
+                <label>اغلب احساس خستگی مداوم داری؟ *</label>
+                <div class="choices cols2">
+                  <label class="choice"><input type="radio" name="fatigue" value="no" /><span class="box">نه</span></label>
+                  <label class="choice"><input type="radio" name="fatigue" value="yes" /><span class="box">بله</span></label>
+                </div>
+              </div>
+            </div>
             <div class="err" id="err3">لطفاً وضعیت سابقه و آسیب را مشخص کنید.</div>
           </fieldset>
           <div class="nav"><button type="button" class="btn btn-ghost" data-prev>→ برگشت</button><button type="button" class="btn btn-volt" data-next>قدم بعد ←</button></div>
@@ -917,6 +987,27 @@ const EN_TEXT = {
   "سرشانه": "Shoulders",
   "بازو": "Arm",
   "سیگار یا قلیان؟ *": "Cigarettes or hookah? *",
+  "مکمل‌ها و ریزمغذی‌ها *": "Supplements & micronutrients *",
+  "فقط غربالگری — اپ هیچ مکملی تجویز نمی‌کند.": "Screening only — the app prescribes no supplements.",
+  "در حال حاضر مکمل مصرف می‌کنی؟ *": "Do you currently take any supplements? *",
+  "کدام‌ها؟ *": "Which ones? *",
+  "مثلاً: پروتئین وی، کراتین": "e.g.: whey protein, creatine",
+  "داروی خاصی مصرف می‌کنی؟ *": "Do you take any specific medication? *",
+  "کدام دارو؟ *": "Which medication? *",
+  "نام دارو را بنویسید": "Write the medication name",
+  "رژیم غذایی خاصی داری؟ *": "Do you follow a specific diet? *",
+  "گیاه‌خوار": "Vegetarian",
+  "وگن": "Vegan",
+  "کتوژنیک": "Ketogenic",
+  "فستینگ": "Fasting",
+  "روزانه چقدر آفتاب مستقیم می‌گیری؟ *": "How much direct sun do you get daily? *",
+  "کمتر از ۱۵ دقیقه": "Under 15 minutes",
+  "۱۵ تا ۳۰ دقیقه": "15–30 minutes",
+  "بیشتر از ۳۰ دقیقه": "Over 30 minutes",
+  "کمبود ویتامین یا ماده معدنی تشخیص‌داده‌شده داری؟ *": "Do you have any diagnosed vitamin or mineral deficiency? *",
+  "کدام‌ها؟ (مثل آهن، D، B12) *": "Which ones? (e.g. iron, D, B12) *",
+  "مثلاً: آهن، ویتامین D": "e.g.: iron, vitamin D",
+  "اغلب احساس خستگی مداوم داری؟ *": "Do you often feel persistently tired? *",
   "نه": "No",
   "گاهی": "Sometimes",
   "روزانه": "Daily",
@@ -1060,6 +1151,16 @@ document.getElementById("fHeight").addEventListener("input", updateWhtrLive);
 $$('input[name="injury"]').forEach(r => r.addEventListener("change", () => {
   $("#injuryBox").classList.toggle("show", radioVal("injury") === "yes");
 }));
+/* Supplement screening conditionals (free-text appears only on "yes") */
+$$('input[name="suppUse"]').forEach(r => r.addEventListener("change", () => {
+  $("#suppBox").classList.toggle("show", radioVal("suppUse") === "yes");
+}));
+$$('input[name="medsUse"]').forEach(r => r.addEventListener("change", () => {
+  $("#medsBox").classList.toggle("show", radioVal("medsUse") === "yes");
+}));
+$$('input[name="diagDef"]').forEach(r => r.addEventListener("change", () => {
+  $("#diagBox").classList.toggle("show", radioVal("diagDef") === "yes");
+}));
 /* Pain map */
 const PAIN_ZONES = [
   { k:"shoulder", fa:"شانه", en:"Shoulder" },
@@ -1155,6 +1256,17 @@ function showStep(idx){
     gp.style.display = hide ? "none" : "";
     if(hide){ const c = gp.querySelector('input:checked'); if(c) c.checked = false; }
   }
+  // Supplement/micronutrient screening: gym/vip/aionly only — padel-only track skips it.
+  const sb = document.getElementById("suppBlock");
+  if(sb){
+    const hideSupp = curPath === "padel";
+    sb.style.display = hideSupp ? "none" : "";
+    if(hideSupp){
+      sb.querySelectorAll('input[type="radio"]:checked').forEach(c => { c.checked = false; });
+      ["fSuppList","fMedsList","fDiagList"].forEach(id => { const el = document.getElementById(id); if(el) el.value = ""; });
+      ["suppBox","medsBox","diagBox"].forEach(id => { const b = document.getElementById(id); if(b) b.classList.remove("show"); });
+    }
+  }
   window.scrollTo({ top:0, behavior:"smooth" });
 }
 
@@ -1185,6 +1297,18 @@ function validateKey(key){
     // Deeper training profile (v1.5): both starred — must not be skippable.
     if(!radioVal("trainDays")) miss("روز تمرین فعلی", "current training days");
     if(!radioVal("smoke")) miss("دخانیات", "smoking");
+    // Supplement & micronutrient screening (gym/vip/aionly only — padel track hides the block).
+    if(curPath !== "padel"){
+      if(!radioVal("suppUse")) miss("مصرف مکمل", "supplement use");
+      if(radioVal("suppUse") === "yes" && !$("#fSuppList").value.trim()) miss("نوع مکمل", "supplement types");
+      if(!radioVal("medsUse")) miss("مصرف دارو", "medication use");
+      if(radioVal("medsUse") === "yes" && !$("#fMedsList").value.trim()) miss("نوع دارو", "medication types");
+      if(!radioVal("dietType")) miss("رژیم غذایی", "diet type");
+      if(!radioVal("sun")) miss("آفتاب روزانه", "daily sun exposure");
+      if(!radioVal("diagDef")) miss("کمبود تشخیص‌داده‌شده", "diagnosed deficiency");
+      if(radioVal("diagDef") === "yes" && !$("#fDiagList").value.trim()) miss("نوع کمبود", "deficiency types");
+      if(!radioVal("fatigue")) miss("خستگی مداوم", "persistent fatigue");
+    }
     errId = "err3";
   }
   if(key === "vip"){
@@ -1316,6 +1440,8 @@ const fatzoneLabel = k => (EN() ? FATZONE_TXT_EN : FATZONE_TXT)[k] || k;
 const weakMuscleLabel = k => (EN() ? WEAKMUSCLE_TXT_EN : WEAKMUSCLE_TXT)[k] || k;
 const equipLabel = k => (EN() ? EQUIP_TXT_EN : EQUIP_TXT)[k] || k;
 const smokeLabel = k => (EN() ? SMOKE_TXT_EN : SMOKE_TXT)[k] || k;
+const dietLabel = k => ({none:tx("نه","No"),vegetarian:tx("گیاه‌خوار","Vegetarian"),vegan:tx("وگن","Vegan"),keto:tx("کتوژنیک","Ketogenic"),fasting:tx("فستینگ","Fasting")}[k] || k);
+const sunLabel = k => ({low:tx("کمتر از ۱۵ دقیقه","Under 15 min"),mid:tx("۱۵ تا ۳۰ دقیقه","15–30 min"),high:tx("بیشتر از ۳۰ دقیقه","Over 30 min")}[k] || k);
 
 function calculateProfile(){
   const h = parseNum($("#fHeight").value), w = parseNum($("#fWeight").value), age = parseNum($("#fAge").value);
@@ -1356,6 +1482,16 @@ function calculateProfile(){
     trainPlace: radioVal("trainPlace"),
     trainDays: radioVal("trainDays"),
     smoke: radioVal("smoke"),
+    // Supplement & micronutrient screening (gym/vip/aionly; padel track skips the block → nulls)
+    suppUse: radioVal("suppUse"),
+    suppList: $("#fSuppList").value.trim(),
+    medsUse: radioVal("medsUse"),
+    medsList: $("#fMedsList").value.trim(),
+    dietType: radioVal("dietType"),
+    sun: radioVal("sun"),
+    diagDef: radioVal("diagDef"),
+    diagList: $("#fDiagList").value.trim(),
+    fatigue: radioVal("fatigue"),
     prBench: parseNum($("#fPRBench").value) || null,
     prSquat: parseNum($("#fPRSquat").value) || null,
     prDead: parseNum($("#fPRDead").value) || null,
@@ -1573,6 +1709,30 @@ function renderResults(d){
     const trainBlock = tParts.length
       ? "<h3>" + tx("پروفایل تمرینی","Training profile") + "</h3>" + '<ul class="tips">' + tParts.map(t => "<li>" + t + "</li>").join("") + "</ul>"
       : "";
+    // Supplement & micronutrient screening (gym/vip/aionly only — padel track
+    // never answers the block, so d.suppUse is null there and nothing renders).
+    // PRODUCT RULE: flags are "کاندید بررسی" (candidate for review) — the app
+    // never says the body "needs" something and never suggests dosages.
+    let suppBlock = "";
+    if(d.suppUse){
+      const sParts = [];
+      sParts.push(tx("مصرف مکمل","Supplement use") + ": " + (d.suppUse === "yes" ? tx("بله","Yes") + (d.suppList ? " (" + esc(d.suppList) + ")" : "") : tx("خیر","No")));
+      sParts.push(tx("داروی خاص","Medication") + ": " + (d.medsUse === "yes" ? tx("بله","Yes") + (d.medsList ? " (" + esc(d.medsList) + ")" : "") : tx("خیر","No")));
+      if(d.dietType) sParts.push(tx("رژیم غذایی","Diet") + ": " + dietLabel(d.dietType));
+      if(d.sun) sParts.push(tx("آفتاب روزانه","Daily sun") + ": " + sunLabel(d.sun));
+      sParts.push(tx("کمبود تشخیص‌داده‌شده","Diagnosed deficiency") + ": " + (d.diagDef === "yes" ? tx("بله","Yes") + (d.diagList ? " (" + esc(d.diagList) + ")" : "") : tx("خیر","No")));
+      if(d.fatigue) sParts.push(tx("خستگی مداوم","Persistent fatigue") + ": " + (d.fatigue === "yes" ? tx("بله","Yes") : tx("خیر","No")));
+      const sFlags = [];
+      if(d.dietType === "vegan" || d.dietType === "vegetarian") sFlags.push(tx("کاندید بررسی: B12، آهن، پروتئین","Review candidate: B12, iron, protein"));
+      if(d.sun === "low") sFlags.push(tx("کاندید بررسی: ویتامین D","Review candidate: vitamin D"));
+      if(d.diagDef === "yes") sFlags.push(tx("کمبود تشخیص‌داده‌شده ثبت شد — پیگیری نسخه پزشک","Diagnosed deficiency recorded — follow up on the doctor's prescription") + (d.diagList ? ": " + esc(d.diagList) : ""));
+      if(d.medsUse === "yes") sFlags.push(tx("داروی مصرفی ثبت شد — قبل از هر توصیه مکمل، تداخل با پزشک چک شود","Medication recorded — check interactions with the doctor before any supplement recommendation"));
+      if(d.fatigue === "yes") sFlags.push(tx("پیشنهاد: آزمایش خون / ارجاع به پزشک","Suggestion: blood test / doctor referral"));
+      suppBlock = "<h3>" + tx("غربالگری مکمل و ریزمغذی","Supplement & micronutrient screening") + "</h3>" +
+        '<ul class="tips">' + sParts.map(t => "<li>" + t + "</li>").join("") + "</ul>" +
+        sFlags.map(f => '<div class="flag amber"><span class="ic">⚠</span><span>' + f + "</span></div>").join("") +
+        '<p class="step-sub">' + tx("این پرچم‌ها تشخیص پزشکی نیست؛ تصمیم نهایی با مربی و در موارد پزشکی با پزشک است.","These flags are not a medical diagnosis; the final decision rests with the coach — and with the doctor for medical matters.") + "</p>";
+    }
     $("#coachView").innerHTML =
       '<div class="card" style="border-color:rgba(0,240,255,.35)">' +
       '<h2>' + tx("گزارش مربی","Coach report") + '</h2><p class="step-sub">' + tx("این برنامه جهت بررسی و تأیید نهایی شما آماده است.","This program is ready for your final review and approval.") + '</p>' +
@@ -1581,7 +1741,7 @@ function renderResults(d){
       (d.painMap.length
         ? '<ul class="tips">' + d.painMap.map(p => "<li><b>" + esc(p.zone) + "</b> · " + esc(p.time) + " · " + tx("جراحی: ","Surgery: ") + "<b>" + (p.surgery === "yes" ? tx("بله","Yes") + (p.surgNote ? " (" + esc(p.surgNote) + ")" : "") : tx("خیر","No")) + "</b></li>").join("") + "</ul>"
         : '<p style="color:var(--muted); font-size:13.5px">' + tx("دردی علامت زده نشده است.","No pain was marked.") + "</p>") +
-      measureBlock + trainBlock +
+      measureBlock + trainBlock + suppBlock +
       (d.condition ? '<h3 style="margin-top:14px">' + tx("بیماری/دارو","Condition/medication") + '</h3><p style="font-size:14px">' + esc(d.condition) + "</p>" : "") +
       "</div>";
   } else {
@@ -1670,6 +1830,14 @@ function collectSubmission(d){
   answers.trainPlace = radioVal("trainPlace");
   answers.trainDays = radioVal("trainDays");
   answers.smoke = radioVal("smoke");
+  // Supplement screening radios (explicit keys; the 3 free-text inputs
+  // auto-collect as fSuppList/fMedsList/fDiagList — no alias keys).
+  answers.suppUse = radioVal("suppUse");
+  answers.medsUse = radioVal("medsUse");
+  answers.dietType = radioVal("dietType");
+  answers.sun = radioVal("sun");
+  answers.diagDef = radioVal("diagDef");
+  answers.fatigue = radioVal("fatigue");
   const injuries = [], surgeries = [];
   if(d.injury === "yes" && d.injuryZone){
     injuries.push(d.injuryZone);
