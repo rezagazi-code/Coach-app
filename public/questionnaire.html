@@ -1267,6 +1267,16 @@ function showStep(idx){
       ["suppBox","medsBox","diagBox"].forEach(id => { const b = document.getElementById(id); if(b) b.classList.remove("show"); });
     }
   }
+  // Last-step nav: the padel track ends on the "vip" analysis step, whose
+  // button is data-next. Relabel it as the finish action there (it submits
+  // the questionnaire); other tracks keep "next" since recovery follows.
+  const nxBtn = document.querySelector(".step.active [data-next]");
+  if(nxBtn && nxBtn.firstChild){
+    const isLast = curIdx >= pathDef().steps.length - 1;
+    const fa = isLast ? "ساخت برنامه ✓" : "قدم بعد ←";
+    _origText.set(nxBtn.firstChild, fa);
+    nxBtn.firstChild.nodeValue = EN() ? (EN_TEXT[fa] || fa) : fa;
+  }
   window.scrollTo({ top:0, behavior:"smooth" });
 }
 
@@ -1399,9 +1409,13 @@ $$('input[name="ptype"]').forEach(r => r.addEventListener("change", () => {
   if(curIdx === 0) showStep(0);
 }));
 $$("[data-next]").forEach(b => b.addEventListener("click", () => {
-  const key = pathDef().steps[curIdx];
+  const def = pathDef();
+  const key = def.steps[curIdx];
   if(!validateKey(key)) return;
   if(key === "path") curPath = radioVal("ptype");
+  // The padel track ends on the "vip" step (no recovery step): its data-next
+  // button is the finish action — advancing would clamp and strand the user.
+  if(curIdx >= def.steps.length - 1){ finishWizard(); return; }
   showStep(curIdx + 1);
 }));
 $$("[data-prev]").forEach(b => b.addEventListener("click", () => showStep(curIdx - 1)));
@@ -1896,7 +1910,11 @@ function emitSubmission(profile){
 }
 
 /* events */
-$$(".finishBtn").forEach(b => b.addEventListener("click", () => {
+/* Shared finish sequence: validate the current step, emit the submission
+ * (offline-queue persisted + postMessage to the app shell), render the
+ * trainee program + coach report. Used by .finishBtn and by the last-step
+ * data-next button (padel track). */
+function finishWizard(){
   const key = pathDef().steps[curIdx];
   if(!validateKey(key)) return;
   const profile = calculateProfile();
@@ -1905,7 +1923,8 @@ $$(".finishBtn").forEach(b => b.addEventListener("click", () => {
   $("#wizard").classList.add("hidden");
   $("#results").classList.add("show");
   window.scrollTo({ top:0, behavior:"smooth" });
-}));
+}
+$$(".finishBtn").forEach(b => b.addEventListener("click", finishWizard));
 $("#tabTrainee").addEventListener("click", () => {
   $("#tabTrainee").classList.add("on"); $("#tabCoach").classList.remove("on");
   $("#traineeView").classList.remove("hidden"); $("#coachView").classList.add("hidden");
