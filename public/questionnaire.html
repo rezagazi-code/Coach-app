@@ -1270,7 +1270,8 @@ function showStep(idx){
   // Last-step nav: the padel track ends on the "vip" analysis step, whose
   // button is data-next. Relabel it as the finish action there (it submits
   // the questionnaire); other tracks keep "next" since recovery follows.
-  const nxBtn = document.querySelector(".step.active [data-next]");
+  // Step 0 keeps its own "شروع ارزیابی" label — don't touch it.
+  const nxBtn = curIdx > 0 ? document.querySelector(".step.active [data-next]") : null;
   if(nxBtn && nxBtn.firstChild){
     const isLast = curIdx >= pathDef().steps.length - 1;
     const fa = isLast ? "ساخت برنامه ✓" : "قدم بعد ←";
