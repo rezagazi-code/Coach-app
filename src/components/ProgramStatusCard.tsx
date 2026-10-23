@@ -1,0 +1,142 @@
+/**
+ * Athlete-side program status card (top of the workout tab).
+ *
+ * The trainee core loop: questionnaire → program (in_review) → coach
+ * approves → trainee trains from the approved program. Until now the
+ * trainee saw NOTHING of this pipeline — this card closes that gap:
+ *   none              → prompt to fill the questionnaire
+ *   pending/in_review → «sent to coach — awaiting review» (pending = the
+ *                       submission exists locally but hasn't synced yet:
+ *                       offline / demo mode)
+ *   approved/active   → «approved by {coach}» (+ exercise list when the
+ *                       persisted answers carry it)
+ */
+import { useEffect, useState } from 'react';
+import { useLang } from '../lib/i18n';
+import {
+  getAthleteLatestProgram,
+  getAthleteLatestResponse,
+  getCurrentAthleteId,
+  readPendingSubmission,
+  SupabaseNotConfiguredError,
+  type Program,
+  type ProgramExerciseDay,
+} from '../lib/supabase';
+
+export type ProgramState =
+  | { kind: 'loading' }
+  | { kind: 'none' }
+  | { kind: 'pending' }
+  | { kind: 'in_review'; program: Program; coachName: string | null }
+  | { kind: 'ready'; program: Program; coachName: string | null; days: ProgramExerciseDay[] }
+  | { kind: 'ready-noexercises'; program: Program; coachName: string | null };
+
+function validDays(v: unknown): ProgramExerciseDay[] | null {
+  if (!Array.isArray(v)) return null;
+  const days = (v as Array<Record<string, unknown>>).filter(
+    (d) => d && typeof d === 'object' && typeof d.day === 'number' && Array.isArray(d.exercises)
+  );
+  return days.length ? (days as unknown as ProgramExerciseDay[]) : null;
+}
+
+/** True when a locally stored submission belongs to this athlete (or to nobody yet). */
+function hasOwnPendingSubmission(athleteId: string | null): boolean {
+  const p = readPendingSubmission();
+  if (!p) return false;
+  const stamped = p.athleteId ?? null;
+  // A payload stamped for a DIFFERENT athlete is never ours (shared device).
+  if (stamped && stamped !== athleteId) return false;
+  return true;
+}
+
+export function useAthleteProgramStatus(): ProgramState {
+  const [state, setState] = useState<ProgramState>({ kind: 'loading' });
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const athleteId = getCurrentAthleteId();
+      const fallback = (): ProgramState =>
+        hasOwnPendingSubmission(athleteId) ? { kind: 'pending' } : { kind: 'none' };
+      try {
+        if (!athleteId) {
+          if (alive) setState(fallback());
+          return;
+        }
+        const latest = await getAthleteLatestProgram(athleteId);
+        if (!latest) {
+          if (alive) setState(fallback());
+          return;
+        }
+        const { program, coachName } = latest;
+        if (program.status === 'in_review') {
+          if (alive) setState({ kind: 'in_review', program, coachName });
+          return;
+        }
+        if (program.status === 'approved' || program.status === 'active') {
+          const resp = await getAthleteLatestResponse(athleteId);
+          const days = validDays(
+            (resp?.answers as Record<string, unknown> | undefined)?._program &&
+              ((resp?.answers as Record<string, unknown>)._program as Record<string, unknown>).exercises
+          );
+          if (alive) {
+            setState(
+              days
+                ? { kind: 'ready', program, coachName, days }
+                : { kind: 'ready-noexercises', program, coachName }
+            );
+          }
+          return;
+        }
+        // draft / archived — no live program; a fresh questionnaire is the way back.
+        if (alive) setState(fallback());
+      } catch (e) {
+        // Unconfigured backend (demo mode) or a transient read failure:
+        // never strand the UI — the local submission signal decides.
+        if (alive) {
+          if (!(e instanceof SupabaseNotConfiguredError)) {
+            console.warn('[program-status] read failed, using local signal', e);
+          }
+          setState(fallback());
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return state;
+}
+
+export default function ProgramStatusCard({ state }: { state: ProgramState }) {
+  const { t } = useLang();
+  if (state.kind === 'loading') {
+    return (
+      <div className="card status-card" aria-busy="true">
+        <div className="status-shimmer" />
+      </div>
+    );
+  }
+  if (state.kind === 'none') {
+    return (
+      <div className="card status-card">
+        <div className="status-title">{t('w.noProgramTitle')}</div>
+        <div className="status-sub">{t('w.noProgramBody')}</div>
+      </div>
+    );
+  }
+  if (state.kind === 'pending' || state.kind === 'in_review') {
+    return (
+      <div className="card status-card">
+        <div className="status-title">📤 {t('w.programSent')}</div>
+        <div className="status-sub">{t('w.programSentSub')}</div>
+      </div>
+    );
+  }
+  const coachLine = state.coachName ? `${t('w.approvedBy')} ${state.coachName}` : t('w.approvedNoName');
+  return (
+    <div className="card status-card approved">
+      <div className="status-title">✅ {coachLine}</div>
+      {state.kind === 'ready-noexercises' && <div className="status-sub">{t('w.noExercisesNote')}</div>}
+    </div>
+  );
+}

@@ -1,19 +1,34 @@
 /**
- * Tab (b) — live session logger.
- * Header: «جلسه امروز: سینه و سرشانه» → exercise «پرس بالاسینه با دمبل».
- * 4 tappable set cards (sets 1–2 pre-logged), weight stepper ±2.5, reps ±1,
- * RPE row 7→10 with reps-in-reserve hint, big «ثبت ست», PR overlay when a set
- * beats the exercise's previous best 1RM estimate, end-of-session feedback.
+ * Tab (b) — the trainee's workout session, driven by their program.
+ *
+ * Core loop: ProgramStatusCard (top) shows where the athlete stands —
+ * no program → questionnaire prompt; in_review/pending → awaiting coach;
+ * approved/active → the coach-approved session below.
+ *
+ * - Approved program WITH exercises (from answers._program, persisted by
+ *   public/questionnaire.html): day selector (when >1 day) + exercise
+ *   cards, each with a «دیدن حرکت» demo-video pill (MuscleWiki allowlist)
+ *   and tap-to-open the set logger for that exercise. Session/sets log
+ *   with the REAL program_id + coach_id.
+ * - in_review / pending: waiting card only, no demo.
+ * - No program at all: the status prompt + the original demo session as
+ *   fallback (unchanged behavior).
  */
 import { useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { Browser } from '@capacitor/browser';
 import { useLang } from '../lib/i18n';
 import Toast from '../components/Toast';
+import ProgramStatusCard, { useAthleteProgramStatus } from '../components/ProgramStatusCard';
 import {
   enqueueWrite,
   enqueueLoggedSet,
   getCurrentAthleteId,
   newClientUuid,
   flushQueue,
+  type Program,
+  type ProgramExercise,
+  type ProgramExerciseDay,
   type SessionDifficulty,
 } from '../lib/supabase';
 
@@ -32,9 +47,6 @@ const RPE_STEPS = [
   { v: 9.5, fa: '۰–۱', en: '0–1' },
   { v: 10, fa: '۰', en: '0' },
 ];
-
-/** Exercise identity for the demo session (PRs tracked per exercise). */
-const EXERCISE_KEY = 'w.exercise';
 
 /** Estimated 1RM (Epley) — PR = beating your previous best for THIS exercise. */
 const epley = (weight: number, reps: number) => weight * (1 + reps / 30);
@@ -68,15 +80,52 @@ function saveBest(exercise: string, best: BestEffort) {
   }
 }
 
-export default function WorkoutTab() {
+/**
+ * Parse a sets spec like "3 sets × 8–10 reps" (setsEn from the
+ * questionnaire) into a set count + rep target. Falls back to 3×10 when
+ * the text doesn't match (e.g. "Daily").
+ */
+function parseSetsSpec(setsEn: string): { count: number; reps: number } {
+  const m = /(\d+)\s*sets?\s*[×x]\s*(\d+)(?:\s*[–—-]\s*(\d+))?/i.exec(setsEn || '');
+  if (!m) return { count: 3, reps: 10 };
+  const count = Math.min(8, Math.max(1, parseInt(m[1], 10)));
+  const lo = parseInt(m[2], 10);
+  const hi = m[3] ? parseInt(m[3], 10) : lo;
+  return { count, reps: Math.max(1, Math.round((lo + hi) / 2)) };
+}
+
+/** Demo-video links: same allowlist + open path as the questionnaire tab. */
+function openDemoVideo(url: string) {
+  if (!/^https:\/\/musclewiki\.com\//.test(url)) return;
+  if (Capacitor.isNativePlatform()) {
+    void Browser.open({ url }).catch((err) => console.error('[workout] browser open failed', err));
+  } else {
+    window.open(url, '_blank', 'noopener');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SetLogger — the session logger, parameterized by exercise.
+// The demo session below feeds it the original hardcoded spec, unchanged.
+// ---------------------------------------------------------------------------
+
+interface LoggerSpec {
+  exerciseKey: string; // PR-storage namespace + logged exercise identity
+  title: string; // exercise display name (already localized)
+  sessionTitle: string; // h2 above the card
+  video: string; // demo-video URL or ""
+  initialSets: SetLog[];
+  preLogged: number; // leading sets that start done (demo fixture)
+  prFallback: BestEffort;
+  programId: string | null;
+  coachId: string | null;
+  onBack: (() => void) | null; // program mode: back to the exercise list
+}
+
+function SetLogger({ spec }: { spec: LoggerSpec }) {
   const { t, num, lang } = useLang();
-  const [sets, setSets] = useState<SetLog[]>([
-    { weight: 30, reps: 12, done: true, rpe: 8 },
-    { weight: 32.5, reps: 10, done: true, rpe: 9 },
-    { weight: 35, reps: 8, done: false, rpe: null },
-    { weight: 35, reps: 8, done: false, rpe: null },
-  ]);
-  const [active, setActive] = useState(2);
+  const [sets, setSets] = useState<SetLog[]>(spec.initialSets);
+  const [active, setActive] = useState(spec.preLogged);
   const [rpe, setRpe] = useState<number | null>(null);
   const [showPR, setShowPR] = useState(false);
   const [feedback, setFeedback] = useState<'easy' | 'ok' | 'hard' | null>(null);
@@ -99,8 +148,8 @@ export default function WorkoutTab() {
     enqueueWrite('workout_sessions', {
       id,
       athlete_id: getCurrentAthleteId(),
-      coach_id: null,
-      program_id: null,
+      coach_id: spec.coachId,
+      program_id: spec.programId,
       date: todayISO(),
       started_at: startedAt,
       completed_at: null,
@@ -110,22 +159,20 @@ export default function WorkoutTab() {
       notes: '',
       client_uuid: id,
     });
-    // The two pre-logged fixture sets render as done in the UI — persist
-    // them through the queue too, or the server would hold only the sets
-    // logged during this visit while the coach sees 4 done sets.
-    // Deterministic set UUIDs keep this idempotent across retries.
-    enqueueLoggedSet(id, {
-      set_number: 1,
-      weight_kg: sets[0].weight,
-      reps: sets[0].reps,
-      rpe: sets[0].rpe,
-    });
-    enqueueLoggedSet(id, {
-      set_number: 2,
-      weight_kg: sets[1].weight,
-      reps: sets[1].reps,
-      rpe: sets[1].rpe,
-    });
+    // Pre-logged fixture sets render as done in the UI — persist them
+    // through the queue too, or the server would hold only the sets logged
+    // during this visit while the coach sees N done sets. Deterministic
+    // set UUIDs keep this idempotent across retries.
+    for (let i = 0; i < spec.preLogged; i++) {
+      const s = spec.initialSets[i];
+      if (!s || !s.done) continue;
+      enqueueLoggedSet(id, {
+        set_number: i + 1,
+        weight_kg: s.weight,
+        reps: s.reps,
+        rpe: s.rpe,
+      });
+    }
     return id;
   };
 
@@ -142,7 +189,7 @@ export default function WorkoutTab() {
     setSets((prev) => {
       const next = [...prev];
       const cur = next[active];
-      if (cur.done) return prev;
+      if (!cur || cur.done) return prev;
       const v = key === 'weight' ? cur.weight + delta : cur.reps + delta;
       const clamped =
         key === 'weight' ? Math.max(2.5, Math.min(120, Math.round(v * 2) / 2)) : Math.max(1, Math.min(40, v));
@@ -152,14 +199,13 @@ export default function WorkoutTab() {
   };
 
   const logSet = () => {
-    if (activeSet.done || rpe === null) return;
+    if (!activeSet || activeSet.done || rpe === null) return;
     // PR detection (per supabase-training-log.sql design): compare against
-    // the athlete's previous best for this same exercise — seeded here from
-    // the two pre-logged sets until real history loads.
-    const prevBest = loadBest(EXERCISE_KEY) ?? { weight: 32.5, reps: 10 };
+    // the athlete's previous best for this same exercise.
+    const prevBest = loadBest(spec.exerciseKey) ?? spec.prFallback;
     const isPR = epley(activeSet.weight, activeSet.reps) > epley(prevBest.weight, prevBest.reps) + 1e-9;
     if (isPR) {
-      saveBest(EXERCISE_KEY, { weight: activeSet.weight, reps: activeSet.reps });
+      saveBest(spec.exerciseKey, { weight: activeSet.weight, reps: activeSet.reps });
     }
     setSets((prev) => {
       const next = [...prev];
@@ -173,6 +219,7 @@ export default function WorkoutTab() {
     // whenever the Supabase project exists and the athlete is known.
     const sid = ensureSession();
     enqueueLoggedSet(sid, {
+      exercise_id: spec.exerciseKey,
       set_number: active + 1,
       weight_kg: activeSet.weight,
       reps: activeSet.reps,
@@ -208,8 +255,8 @@ export default function WorkoutTab() {
     enqueueWrite('workout_sessions', {
       id: sid,
       athlete_id: getCurrentAthleteId(),
-      coach_id: null,
-      program_id: null,
+      coach_id: spec.coachId,
+      program_id: spec.programId,
       date: todayISO(),
       started_at: new Date(startedAtMs).toISOString(),
       completed_at: new Date().toISOString(),
@@ -223,12 +270,26 @@ export default function WorkoutTab() {
   };
 
   return (
-    <div className="tab-pad">
-      <h2 className="section-title">{t('w.sessionTitle')}</h2>
+    <>
+      {spec.onBack && (
+        <button type="button" className="neon-ghost back-btn" onClick={spec.onBack}>
+          {t('w.backToProgram')}
+        </button>
+      )}
+      <h2 className="section-title">{spec.sessionTitle}</h2>
       <div className="card neon-rise">
-        <div className="exercise-name">{t('w.exercise')}</div>
+        <div className="exercise-name">{spec.title}</div>
+        {spec.video && (
+          <button
+            type="button"
+            className="ex-video-pill"
+            onClick={() => openDemoVideo(spec.video)}
+          >
+            ▶ {t('w.watchDemo')}
+          </button>
+        )}
 
-        {/* 4 set cards */}
+        {/* set cards */}
         <div className="set-grid">
           {sets.map((s, i) => (
             <button
@@ -262,7 +323,7 @@ export default function WorkoutTab() {
           ))}
         </div>
 
-        {!allDone && !activeSet.done && (
+        {!allDone && activeSet && !activeSet.done && (
           <>
             {/* steppers */}
             <div className="steppers">
@@ -371,6 +432,163 @@ export default function WorkoutTab() {
       )}
 
       <Toast msg={toast} />
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Demo session — the original hardcoded workout, kept as the no-program
+// fallback. Behavior unchanged.
+// ---------------------------------------------------------------------------
+
+function DemoWorkout() {
+  const { t } = useLang();
+  const spec: LoggerSpec = {
+    exerciseKey: 'w.exercise',
+    title: t('w.exercise'),
+    sessionTitle: t('w.sessionTitle'),
+    video: '',
+    initialSets: [
+      { weight: 30, reps: 12, done: true, rpe: 8 },
+      { weight: 32.5, reps: 10, done: true, rpe: 9 },
+      { weight: 35, reps: 8, done: false, rpe: null },
+      { weight: 35, reps: 8, done: false, rpe: null },
+    ],
+    preLogged: 2,
+    prFallback: { weight: 32.5, reps: 10 },
+    programId: null,
+    coachId: null,
+    onBack: null,
+  };
+  return <SetLogger spec={spec} />;
+}
+
+// ---------------------------------------------------------------------------
+// Program session — the coach-approved program rendered from
+// answers._program.exercises.
+// ---------------------------------------------------------------------------
+
+function ProgramSessionView({
+  program,
+  days,
+}: {
+  program: Program;
+  days: ProgramExerciseDay[];
+}) {
+  const { t, num, lang } = useLang();
+  const [dayIdx, setDayIdx] = useState(0);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const day = days[Math.min(dayIdx, days.length - 1)];
+  const openEx: ProgramExercise | null = openId
+    ? (day.exercises.find((e) => e.id === openId) ?? null)
+    : null;
+
+  if (openEx) {
+    const { count, reps } = parseSetsSpec(openEx.setsEN);
+    const prevBest = loadBest(`w.program.${openEx.id}`);
+    const startWeight = prevBest ? prevBest.weight : 20;
+    const spec: LoggerSpec = {
+      exerciseKey: `w.program.${openEx.id}`,
+      title: lang === 'fa' ? openEx.nameFA : openEx.nameEN,
+      sessionTitle: t('w.todaySession'),
+      video: openEx.video,
+      initialSets: Array.from({ length: count }, () => ({
+        weight: startWeight,
+        reps,
+        done: false,
+        rpe: null,
+      })),
+      preLogged: 0,
+      prFallback: { weight: startWeight, reps },
+      programId: program.id,
+      coachId: program.coach_id,
+      onBack: () => setOpenId(null),
+    };
+    return <SetLogger key={openEx.id} spec={spec} />;
+  }
+
+  return (
+    <>
+      <h2 className="section-title">{t('w.todaySession')}</h2>
+      {days.length > 1 && (
+        <div className="day-row" role="tablist" aria-label={t('w.todaySession')}>
+          {days.map((d, i) => (
+            <button
+              key={d.day}
+              type="button"
+              role="tab"
+              aria-selected={i === dayIdx}
+              className={i === dayIdx ? 'day-btn active' : 'day-btn'}
+              onClick={() => {
+                setDayIdx(i);
+                setOpenId(null);
+              }}
+            >
+              {t('w.day')} {num(d.day)}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="program-ex-list">
+        {day.exercises.map((ex) => {
+          const name = lang === 'fa' ? ex.nameFA : ex.nameEN;
+          const sets = lang === 'fa' ? ex.setsFA : ex.setsEN;
+          const note = lang === 'fa' ? ex.noteFA : ex.noteEN;
+          return (
+            <div
+              key={ex.id}
+              className="card program-ex-card"
+              role="button"
+              tabIndex={0}
+              onClick={() => setOpenId(ex.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setOpenId(ex.id);
+                }
+              }}
+            >
+              <div className="program-ex-name">{name}</div>
+              <div className="program-ex-sets">{sets}</div>
+              {note && <div className="program-ex-note">{note}</div>}
+              <div className="program-ex-foot">
+                {ex.video ? (
+                  <button
+                    type="button"
+                    className="ex-video-pill"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openDemoVideo(ex.video);
+                    }}
+                  >
+                    ▶ {t('w.watchDemo')}
+                  </button>
+                ) : (
+                  <span />
+                )}
+                <span className="program-ex-go">{t('w.startWorkout')}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tab root — status card on top, then the view matching the program state.
+// ---------------------------------------------------------------------------
+
+export default function WorkoutTab() {
+  const state = useAthleteProgramStatus();
+  return (
+    <div className="tab-pad">
+      <ProgramStatusCard state={state} />
+      {state.kind === 'ready' && (
+        <ProgramSessionView program={state.program} days={state.days} />
+      )}
+      {state.kind === 'none' && <DemoWorkout />}
     </div>
   );
 }

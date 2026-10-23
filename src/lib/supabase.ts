@@ -153,6 +153,30 @@ export interface Program {
   created_at: string;
 }
 
+/**
+ * A program exercise as built by buildProgramExercises() in
+ * public/questionnaire.html and persisted in
+ * questionnaire_responses.answers._program.exercises (single-day shape
+ * [{day:1, exercises:[...]}] for now — the questionnaire issues one
+ * session repeated days_per_week times).
+ */
+export interface ProgramExercise {
+  id: string; // EX_DB key, or "<key>-alt<i>" for a home-friendly alternative
+  nameFA: string;
+  nameEN: string;
+  setsFA: string;
+  setsEN: string;
+  noteFA: string;
+  noteEN: string;
+  video: string; // MuscleWiki demo URL, or "" when none exists
+}
+
+/** One training day of a persisted program. */
+export interface ProgramExerciseDay {
+  day: number;
+  exercises: ProgramExercise[];
+}
+
 /** v1 xp_events. XP is additive-only (DB trigger rejects negatives). */
 export interface XpEvent {
   id: string;
@@ -714,6 +738,53 @@ export async function latestProgramFor(athleteId: string): Promise<Program | nul
 }
 
 /**
+ * The athlete's newest program row plus the coach's display name
+ * (best-effort: RLS may hide the coaches table from athletes, in which
+ * case the name stays null and the UI falls back to a nameless label).
+ * Powers the trainee-side program status card in the workout tab.
+ */
+export async function getAthleteLatestProgram(
+  athleteId: string
+): Promise<{ program: Program; coachName: string | null } | null> {
+  const program = await latestProgramFor(athleteId);
+  if (!program) return null;
+  let coachName: string | null = null;
+  if (program.coach_id) {
+    try {
+      const { data } = await requireClient()
+        .from('coaches')
+        .select('display_name')
+        .eq('id', program.coach_id)
+        .maybeSingle();
+      coachName = (data as { display_name?: string } | null)?.display_name ?? null;
+    } catch {
+      /* coach name is a nicety, not a requirement */
+    }
+  }
+  return { program, coachName };
+}
+
+/**
+ * The athlete's newest questionnaire response — carries
+ * answers._program.exercises (see buildProgramExercises in
+ * public/questionnaire.html), which is what the workout tab renders the
+ * approved session from.
+ */
+export async function getAthleteLatestResponse(
+  athleteId: string
+): Promise<QuestionnaireResponse | null> {
+  const { data, error } = await requireClient()
+    .from('questionnaire_responses')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as QuestionnaireResponse | null) ?? null;
+}
+
+/**
  * Save the coach's note / body-weaknesses assessment on the athlete's
  * program. programs.coach_notes is the field program drafting reads
  * (together with the questionnaire) — see CoachPanel's note UI copy.
@@ -768,7 +839,14 @@ export interface QuestionnaireSubmission {
   answers: Record<string, unknown>;
   /** Coach-card snapshot: bmi, bmi_cat, age_band, injuries[], surgeries[], goal, sleep_hours, days_per_week. */
   flags: Record<string, unknown>;
-  program: { goal: string; split: string; days_per_week: number; ai_summary: string };
+  program: {
+    goal: string;
+    split: string;
+    days_per_week: number;
+    ai_summary: string;
+    /** Structured picks from buildProgramExercises() — additive, optional. */
+    exercises?: ProgramExerciseDay[];
+  };
   /** aionly + any red-flag answer = yes → screening blocked any program. */
   redFlagBlocked: boolean;
   submittedAt: string;

@@ -1438,6 +1438,80 @@ const EX_DB = {
   wristArmor:{ name:"تقویت مچ (ایزومتریک)", sets:"۳ ست × ۲۰ ثانیه", note:"مچ صاف و بدون لرزش", nameEn:"Wrist strengthening (isometric)", setsEn:"3 sets × 20 seconds", noteEn:"Wrist straight, no shaking", tag:"prev", video:"", eq:["bodyweight"] },
   mobility:  { name:"روتین موبیلیتی خانگی (۱۰–۱۵ دقیقه)", sets:"روزانه", note:"شانه، لگن، مچ پا؛ بدون وزنه", nameEn:"Home mobility routine (10–15 min)", setsEn:"Daily", noteEn:"Shoulders, hips, ankles; no weights", video:"", eq:["bodyweight"] }
 };
+/* Home-friendly alternatives (preference order) when the main pick is filtered out. */
+const HOME_ALT = {
+  squat: [
+    { name:"گابلت اسکوات با دمبل", sets:"۳ ست × ۱۰–۱۲ تکرار", note:"دمبل جلوی سینه؛ زانوها در راستای پنجه", nameEn:"Goblet squat with dumbbell", setsEn:"3 sets × 10–12 reps", noteEn:"Dumbbell at chest; knees track over toes", eq:["dumbbell"], video:"" },
+    { name:"اسکوات وزن بدن", sets:"۳ ست × ۱۵–۲۰ تکرار", note:"عمق تا موازات ران", nameEn:"Bodyweight squat", setsEn:"3 sets × 15–20 reps", noteEn:"Depth to parallel", eq:["bodyweight"], video:"" }
+  ],
+  deadlift: [
+    { name:"ددلیفت رومانیایی با دمبل", sets:"۳ ست × ۱۰–۱۲ تکرار", note:"کمر صاف، حرکت از مفصل ران", nameEn:"Dumbbell Romanian deadlift", setsEn:"3 sets × 10–12 reps", noteEn:"Flat back, hinge from the hips", eq:["dumbbell"], video:"" },
+    { name:"گودمورنینگ وزن بدن", sets:"۳ ست × ۱۲–۱۵ تکرار", note:"کمر صاف؛ خم شدن از مفصل ران", nameEn:"Bodyweight good morning", setsEn:"3 sets × 12–15 reps", noteEn:"Flat back; hinge from the hips", eq:["bodyweight"], video:"" }
+  ],
+  bench: [
+    { name:"شنا (پوش‌آپ)", sets:"۳ ست × حداکثر تکرار", note:"بدن یک خط مستقیم", nameEn:"Push-ups", setsEn:"3 sets × max reps", noteEn:"Body in one straight line", eq:["bodyweight"], video:"" }
+  ],
+  row: [
+    { name:"زیربغل با کش", sets:"۳ ست × ۱۲–۱۵ تکرار", note:"کش به نقطه ثابت؛ انقباض بین دو کتف", nameEn:"Band rows", setsEn:"3 sets × 12–15 reps", noteEn:"Anchor the band; squeeze between shoulder blades", eq:["band"], video:"" },
+    { name:"زیر میله بارفیکس (اینورتد رو)", sets:"۳ ست × ۸–۱۲ تکرار", note:"بدن صاف مثل تخته", nameEn:"Inverted rows", setsEn:"3 sets × 8–12 reps", noteEn:"Body straight like a plank", eq:["pullup"], video:"" },
+    { name:"سوپرمن", sets:"۳ ست × ۱۲ تکرار", note:"۲ ثانیه مکث در بالا", nameEn:"Superman", setsEn:"3 sets × 12 reps", noteEn:"2s hold at the top", eq:["bodyweight"], video:"" }
+  ],
+  ohp: [
+    { name:"پرس سرشانه دمبل ایستاده", sets:"۳ ست × ۸–۱۰ تکرار", note:"قوس کمر نده", nameEn:"Standing dumbbell shoulder press", setsEn:"3 sets × 8–10 reps", noteEn:"Don't arch the lower back", eq:["dumbbell"], video:"" },
+    { name:"پوش‌آپ پایک", sets:"۳ ست × ۸–۱۲ تکرار", note:"باسن بالا؛ سر بین بازوها", nameEn:"Pike push-ups", setsEn:"3 sets × 8–12 reps", noteEn:"Hips high; head between arms", eq:["bodyweight"], video:"" }
+  ],
+  facepull: [
+    { name:"فیس‌پول با کش", sets:"۳ ست × ۱۲–۱۵ تکرار", note:"چرخش خارجی آرنج در انتها", nameEn:"Band face pull", setsEn:"3 sets × 12–15 reps", noteEn:"External rotation at the end", eq:["band"], video:"" }
+  ],
+  rotCable: [
+    { name:"وودچاپ با کش", sets:"۳ ست × ۱۰ تکرار هر سمت", note:"چرخش از تنه، نه از دست", nameEn:"Band wood-chop", setsEn:"3 sets × 10 reps per side", noteEn:"Rotate from the trunk, not the arms", eq:["band"], video:"" },
+    { name:"چرخش روسی", sets:"۳ ست × ۱۵ تکرار هر سمت", note:"کمر صاف؛ چرخش کنترل‌شده", nameEn:"Russian twists", setsEn:"3 sets × 15 twists per side", noteEn:"Flat back; controlled rotation", eq:["bodyweight"], video:"" }
+  ]
+};
+
+/* Structured program-exercise list shared by the results table and the
+   submission payload (answers._program -> questionnaire_responses.answers).
+   Same selection logic as the rendered table; single-day shape:
+   { adapted, picked:[{id,adapted,ex}], exercises:[{day:1, exercises:[{id,
+   nameFA,nameEN,setsFA,setsEN,noteFA,noteEN,video}]}] }. */
+function buildProgramExercises(d, path){
+  const equip = d.equipment || [];
+  const eqOk = (e) => (e.eq || []).some(k => k === "bodyweight" || equip.includes(k));
+  const pickOne = (key) => {
+    const e = EX_DB[key];
+    const eq = e.eq || [];
+    // Primary equipment available (or bodyweight) -> original as named.
+    if(eq.length && (eq[0] === "bodyweight" || equip.includes(eq[0])))
+      return { id: key, adapted: false, ex: e };
+    const altIdx = (HOME_ALT[key] || []).findIndex(eqOk);
+    if(altIdx !== -1)
+      return { id: key + "-alt" + altIdx, adapted: true, ex: HOME_ALT[key][altIdx] };
+    // Usable as-is but not with the primary gear, and no named alternative:
+    // keep the original only when it matches some selected equipment.
+    if(eqOk(e)) return { id: key, adapted: false, ex: e };
+    return { id: key, adapted: true, ex: e }; // last resort: original - the coach sees the equipment and adjusts
+  };
+  const showPadel = path === "vip" || path === "padel" || d.pbPlay === "yes";
+  const keys = path === "padel"
+    ? ["rotCable","bulgarian","facepull","wristArmor","mobility"]
+    : ["squat","bench","row","ohp","deadlift","lunge","plank"].concat(
+        showPadel ? ["rotCable","facepull","wristArmor"] : []);
+  const picked = keys.map(pickOne);
+  return {
+    adapted: picked.some(p => p.adapted),
+    picked: picked,
+    exercises: [{
+      day: 1,
+      exercises: picked.map(p => ({
+        id: p.id,
+        nameFA: p.ex.name, nameEN: p.ex.nameEn,
+        setsFA: p.ex.sets, setsEN: p.ex.setsEn,
+        noteFA: p.ex.note, noteEN: p.ex.noteEn,
+        video: p.ex.video || ""
+      }))
+    }]
+  };
+}
 
 const GOAL_TXT = { padel:"آمادگی پدل", fatloss:"چربی‌سوزی", muscle:"حجم عضلانی", strength:"قدرت پایه", health:"سلامت عمومی" };
 const GOAL_TXT_EN = { padel:"Padel readiness", fatloss:"Fat loss", muscle:"Muscle gain", strength:"Base strength", health:"General health" };
@@ -1603,66 +1677,11 @@ function renderResults(d){
 
   /* --- program table (equipment-adaptive) --- */
   const cons = isAI; // conservative for AI-only
-  // An exercise is usable when ANY of its eq tags is in the trainee's
-  // equipment; bodyweight-tagged exercises are always allowed. eq[0] is the
-  // PRIMARY equipment (the one the exercise name assumes).
-  const eqOk = (e, equip) => (e.eq || []).some(k => k === "bodyweight" || equip.includes(k));
-  // Home-friendly alternatives (preference order) when the main pick is filtered out.
-  const HOME_ALT = {
-    squat: [
-      { name:"گابلت اسکوات با دمبل", sets:"۳ ست × ۱۰–۱۲ تکرار", note:"دمبل جلوی سینه؛ زانوها در راستای پنجه", nameEn:"Goblet squat with dumbbell", setsEn:"3 sets × 10–12 reps", noteEn:"Dumbbell at chest; knees track over toes", eq:["dumbbell"], video:"" },
-      { name:"اسکوات وزن بدن", sets:"۳ ست × ۱۵–۲۰ تکرار", note:"عمق تا موازات ران", nameEn:"Bodyweight squat", setsEn:"3 sets × 15–20 reps", noteEn:"Depth to parallel", eq:["bodyweight"], video:"" }
-    ],
-    deadlift: [
-      { name:"ددلیفت رومانیایی با دمبل", sets:"۳ ست × ۱۰–۱۲ تکرار", note:"کمر صاف، حرکت از مفصل ران", nameEn:"Dumbbell Romanian deadlift", setsEn:"3 sets × 10–12 reps", noteEn:"Flat back, hinge from the hips", eq:["dumbbell"], video:"" },
-      { name:"گودمورنینگ وزن بدن", sets:"۳ ست × ۱۲–۱۵ تکرار", note:"کمر صاف؛ خم شدن از مفصل ران", nameEn:"Bodyweight good morning", setsEn:"3 sets × 12–15 reps", noteEn:"Flat back; hinge from the hips", eq:["bodyweight"], video:"" }
-    ],
-    bench: [
-      { name:"شنا (پوش‌آپ)", sets:"۳ ست × حداکثر تکرار", note:"بدن یک خط مستقیم", nameEn:"Push-ups", setsEn:"3 sets × max reps", noteEn:"Body in one straight line", eq:["bodyweight"], video:"" }
-    ],
-    row: [
-      { name:"زیربغل با کش", sets:"۳ ست × ۱۲–۱۵ تکرار", note:"کش به نقطه ثابت؛ انقباض بین دو کتف", nameEn:"Band rows", setsEn:"3 sets × 12–15 reps", noteEn:"Anchor the band; squeeze between shoulder blades", eq:["band"], video:"" },
-      { name:"زیر میله بارفیکس (اینورتد رو)", sets:"۳ ست × ۸–۱۲ تکرار", note:"بدن صاف مثل تخته", nameEn:"Inverted rows", setsEn:"3 sets × 8–12 reps", noteEn:"Body straight like a plank", eq:["pullup"], video:"" },
-      { name:"سوپرمن", sets:"۳ ست × ۱۲ تکرار", note:"۲ ثانیه مکث در بالا", nameEn:"Superman", setsEn:"3 sets × 12 reps", noteEn:"2s hold at the top", eq:["bodyweight"], video:"" }
-    ],
-    ohp: [
-      { name:"پرس سرشانه دمبل ایستاده", sets:"۳ ست × ۸–۱۰ تکرار", note:"قوس کمر نده", nameEn:"Standing dumbbell shoulder press", setsEn:"3 sets × 8–10 reps", noteEn:"Don't arch the lower back", eq:["dumbbell"], video:"" },
-      { name:"پوش‌آپ پایک", sets:"۳ ست × ۸–۱۲ تکرار", note:"باسن بالا؛ سر بین بازوها", nameEn:"Pike push-ups", setsEn:"3 sets × 8–12 reps", noteEn:"Hips high; head between arms", eq:["bodyweight"], video:"" }
-    ],
-    facepull: [
-      { name:"فیس‌پول با کش", sets:"۳ ست × ۱۲–۱۵ تکرار", note:"چرخش خارجی آرنج در انتها", nameEn:"Band face pull", setsEn:"3 sets × 12–15 reps", noteEn:"External rotation at the end", eq:["band"], video:"" }
-    ],
-    rotCable: [
-      { name:"وودچاپ با کش", sets:"۳ ست × ۱۰ تکرار هر سمت", note:"چرخش از تنه، نه از دست", nameEn:"Band wood-chop", setsEn:"3 sets × 10 reps per side", noteEn:"Rotate from the trunk, not the arms", eq:["band"], video:"" },
-      { name:"چرخش روسی", sets:"۳ ست × ۱۵ تکرار هر سمت", note:"کمر صاف؛ چرخش کنترل‌شده", nameEn:"Russian twists", setsEn:"3 sets × 15 twists per side", noteEn:"Flat back; controlled rotation", eq:["bodyweight"], video:"" }
-    ]
-  };
-  let adapted = false;
-  const equip = d.equipment || [];
-  const pickRow = (key) => {
-    const e = EX_DB[key];
-    const eq = e.eq || [];
-    // Primary equipment available (or bodyweight) → original as named.
-    if(eq.length && (eq[0] === "bodyweight" || equip.includes(eq[0]))) return exRow(e, cons);
-    const alt = (HOME_ALT[key] || []).find(a => eqOk(a, equip));
-    if(alt){ adapted = true; return exRow(alt, cons); }
-    // Usable as-is but not with the primary gear, and no named alternative:
-    // keep the original only when it matches some selected equipment.
-    if(eqOk(e, equip)) return exRow(e, cons);
-    adapted = true;
-    return exRow(e, cons); // last resort: original — the coach sees the equipment and adjusts
-  };
-  let progRows = "";
-  if(isPadel){
-    progRows =
-      pickRow("rotCable") + pickRow("bulgarian") + pickRow("facepull") +
-      pickRow("wristArmor") + pickRow("mobility");
-  } else {
-    progRows =
-      pickRow("squat") + pickRow("bench") + pickRow("row") +
-      pickRow("ohp") + pickRow("deadlift") + pickRow("lunge") + pickRow("plank");
-    if(showPadel) progRows += pickRow("rotCable") + pickRow("facepull") + pickRow("wristArmor");
-  }
+  // Structured picks (shared with the submission payload): same selection
+  // logic as the rendered table; `picked` keeps the raw objects for exRow.
+  const progBuilt = buildProgramExercises(d, curPath);
+  const adapted = progBuilt.adapted;
+  let progRows = progBuilt.picked.map(p => exRow(p.ex, cons)).join("");
   const adaptNote = adapted
     ? '<p class="step-sub">🛠 ' + tx("برنامه بر اساس تجهیزات شما تنظیم شد", "Program adapted to your equipment") +
       " (" + (d.trainPlace === "home" ? tx("خونه", "home") : tx("باشگاه", "gym")) + ").</p>"
@@ -1876,6 +1895,15 @@ function collectSubmission(d){
   const blocked = curPath === "aionly" &&
     (d.rf.chest === "yes" || d.rf.faint === "yes" || d.rf.cond === "yes" || d.rf.doc === "yes");
   const goalCode = GOAL_CODE[goalRaw] || "health";
+  // Structured exercise list (same picks as the results table) — persisted
+  // via answers._program into questionnaire_responses.answers, and carried
+  // on payload.program.exercises for forward compatibility.
+  const progBuilt = buildProgramExercises(d, curPath);
+  answers._program = {
+    split: splitFor(d.gymDays),
+    days_per_week: d.gymDays,
+    exercises: progBuilt.exercises
+  };
   return {
     clientUuid: qDraft.uuid,
     track: curPath,
@@ -1885,6 +1913,7 @@ function collectSubmission(d){
       goal: goalCode,
       split: splitFor(d.gymDays),
       days_per_week: d.gymDays,
+      exercises: progBuilt.exercises,
       ai_summary: "AI draft from questionnaire — track " + curPath + ", goal " + goalCode +
         ", BMI " + flags.bmi + " (" + bmiC.key + "), age band " + flags.age_band +
         ", injuries: " + (injuries.join(", ") || "none") +
