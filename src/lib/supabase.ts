@@ -1612,10 +1612,25 @@ export interface NutritionLogItem {
    * (over is always false) since it has no food key.
    */
   rxTaken?: string[];
+  /**
+   * '__bank' entries only: bank-food taps from «بانک غذاها». Lives inside
+   * the existing jsonb `items` column — no schema change. Readers ignore
+   * these for over-eating (over is always false) since they carry no plate
+   * item key. All macro values are APPROXIMATE (per-unit bank values ×
+   * tap count), never personalized medical guidance.
+   */
+  bankId?: string;
+  kcal?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
 }
 
 /** Sentinel key used for the prescription-adherence entry in `items`. */
 export const NUTRITION_RX_SENTINEL = '__rx';
+
+/** Sentinel key used for food-bank taps in `items`. */
+export const NUTRITION_BANK_SENTINEL = '__bank';
 
 export interface NutritionLog {
   id: string;

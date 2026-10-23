@@ -24,6 +24,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLang, type Lang } from '../lib/i18n';
 import { useAuth } from '../lib/auth';
 import Toast from './Toast';
+import { FOOD_BANK, type FoodBankItem } from '../lib/foodBank';
 import {
   decideReview,
   isSupabaseConfigured,
@@ -92,6 +93,45 @@ function writeLocalPlates(plates: Record<string, PlateDraft>) {
 }
 
 const UNITS: NutritionFoodItem['unit'][] = ['g', 'pcs', 'cup', 'ml'];
+
+/**
+ * «انتخاب از بانک» (Pick from bank) — one dropdown + one button per plate
+ * row. Prefills the row's name (FA/EN) and unit from the bank food; the
+ * coach still sets the target amount themselves.
+ */
+function BankPicker({ onPick }: { onPick: (f: FoodBankItem) => void }) {
+  const { t, lang } = useLang();
+  const [picked, setPicked] = useState('');
+  return (
+    <div className="cp-bank-pick">
+      <select
+        className="cp-plate-input cp-bank-select"
+        value={picked}
+        onChange={(e) => setPicked(e.target.value)}
+        aria-label={t('cp.bankPick')}
+      >
+        <option value="">{t('cp.bankChoose')}</option>
+        {FOOD_BANK.map((f) => (
+          <option key={f.id} value={f.id}>
+            {lang === 'fa' ? f.nameFA : f.nameEN}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        className="cp-bank-btn"
+        disabled={!picked}
+        onClick={() => {
+          const f = FOOD_BANK.find((x) => x.id === picked);
+          if (f) onPick(f);
+          setPicked('');
+        }}
+      >
+        {t('cp.bankPick')}
+      </button>
+    </div>
+  );
+}
 
 function demoPlate(): PlateDraft {
   return {
@@ -932,6 +972,15 @@ export default function CoachPanel() {
                               {t('cp.nutritionRemove')}
                             </button>
                           </div>
+                          <BankPicker
+                            onPick={(f) =>
+                              patchPlateItem(c.athlete.id, i, {
+                                label_fa: f.nameFA,
+                                label_en: f.nameEN,
+                                unit: f.unit,
+                              })
+                            }
+                          />
                         </div>
                       ))}
                       <button

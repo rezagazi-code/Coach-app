@@ -22,10 +22,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLang } from '../lib/i18n';
 import { useAuth } from '../lib/auth';
 import Toast from '../components/Toast';
+import { FOOD_BANK, type FoodBankItem } from '../lib/foodBank';
 import {
   getCurrentAthleteId,
   isSupabaseConfigured,
   latestNutritionTargetsFor,
+  NUTRITION_BANK_SENTINEL,
   upsertNutritionLog,
   localDateStr,
   type NutritionFoodItem,
@@ -36,6 +38,7 @@ import {
 const STEP: Record<NutritionFoodItem['unit'], number> = { g: 25, pcs: 1, cup: 0.5, ml: 100 };
 const PLATE_LOCAL = 'km.plate.v1'; // demo-mode / offline per-day cache
 const PLATE_LOCAL_RX = 'km.plate.v1.rx'; // same, for «نسخه پزشک» checkboxes
+const BANK_LOCAL = 'km.bank.v1'; // same, for «بانک غذاها» tap counts
 
 function demoItems(): NutritionFoodItem[] {
   return [
@@ -90,6 +93,8 @@ export default function NutritionTab() {
   const [rx, setRx] = useState<NutritionPrescription[]>([]);
   const [logged, setLogged] = useState<Record<string, number>>({});
   const [rxDone, setRxDone] = useState<Record<string, boolean>>({});
+  const [bankQuery, setBankQuery] = useState('');
+  const [bankTaps, setBankTaps] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedToday, setSavedToday] = useState(false);
@@ -116,6 +121,11 @@ export default function NutritionTab() {
       if (rawRx) {
         const parsedRx = JSON.parse(rawRx) as { date?: string; rxDone?: Record<string, boolean> };
         if (parsedRx?.date === localDateStr() && parsedRx.rxDone) setRxDone(parsedRx.rxDone);
+      }
+      const rawBank = localStorage.getItem(BANK_LOCAL);
+      if (rawBank) {
+        const parsedBank = JSON.parse(rawBank) as { date?: string; taps?: Record<string, number> };
+        if (parsedBank?.date === localDateStr() && parsedBank.taps) setBankTaps(parsedBank.taps);
       }
     } catch {
       /* ignore */
@@ -172,6 +182,59 @@ export default function NutritionTab() {
     }
   };
 
+  // «بانک غذاها» tap counts — same per-day local cache discipline.
+  const persistBank = (next: Record<string, number>) => {
+    try {
+      localStorage.setItem(BANK_LOCAL, JSON.stringify({ date: localDateStr(), taps: next }));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const tapBank = (id: string) => {
+    setBankTaps((prev) => {
+      const next = { ...prev, [id]: (prev[id] ?? 0) + 1 };
+      persistBank(next);
+      return next;
+    });
+    flash(t('n.bankAdded'));
+  };
+
+  const removeBankTap = (id: string) => {
+    setBankTaps((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      persistBank(next);
+      return next;
+    });
+  };
+
+  // % of the day's same-unit plate target that one bank tap represents.
+  // null when no program target exists for that unit (section stays
+  // honest: the preview line only shows what the targets support).
+  const bankPctOfDay = (f: FoodBankItem): number | null => {
+    const same = items.filter((it) => it.unit === f.unit);
+    if (same.length === 0) return null;
+    const total = same.reduce((s, it) => s + it.target, 0);
+    if (total <= 0) return null;
+    return Math.round((f.tapAmount / total) * 100);
+  };
+
+  const q = bankQuery.trim().toLowerCase();
+  const bankFiltered = FOOD_BANK.filter(
+    (f) =>
+      q === '' ||
+      f.nameFA.includes(bankQuery.trim()) ||
+      f.nameEN.toLowerCase().includes(q) ||
+      f.id.includes(q)
+  );
+
+  const bankTodayIds = Object.keys(bankTaps).filter((id) => (bankTaps[id] ?? 0) > 0);
+  const bankTodayKcal = bankTodayIds.reduce((s, id) => {
+    const f = FOOD_BANK.find((x) => x.id === id);
+    return s + (f ? Math.round(f.perUnitKcal * (bankTaps[id] ?? 0)) : 0);
+  }, 0);
+
   const setAmount = (key: string, amount: number) => {
     const v = Math.max(0, Math.round(amount * 100) / 100);
     setLogged((prev) => {
@@ -208,11 +271,33 @@ export default function NutritionTab() {
       const amount = logged[it.key] ?? 0;
       return { key: it.key, amount, over: amount > it.target };
     });
+    // «بانک غذاها» taps ride the SAME upsert path as the steppers: one
+    // '__bank' sentinel entry per food (no plate item key, over=false, so
+    // the coach's over-eating flags never see them). Macros are approx.
+    const r1 = (n: number) => Math.round(n * 10) / 10;
+    const bankEntries: NutritionLogItem[] = Object.entries(bankTaps)
+      .map(([bankId, count]): NutritionLogItem | null => {
+        const f = FOOD_BANK.find((x) => x.id === bankId);
+        if (!f || count <= 0) return null;
+        return {
+          key: NUTRITION_BANK_SENTINEL,
+          bankId: f.id,
+          amount: count,
+          kcal: Math.round(f.perUnitKcal * count),
+          protein: r1(f.perUnitProtein * count),
+          carbs: r1(f.perUnitCarbs * count),
+          fat: r1(f.perUnitFat * count),
+          over: false,
+        };
+      })
+      .filter((x): x is NutritionLogItem => x !== null);
+    const allItems = [...logItems, ...bankEntries];
     // «نسخه پزشک» adherence: the fa|en keys the trainee checked as taken.
     const rxTaken = Object.keys(rxDone).filter((k) => rxDone[k]);
     if (!isSupabaseConfigured || !athleteId) {
       persistLocal(logged);
       persistRxLocal(rxDone);
+      persistBank(bankTaps);
       setSavedToday(true);
       flash(t('n.savedLocal'));
       setSaving(false);
@@ -223,7 +308,7 @@ export default function NutritionTab() {
         athlete_id: athleteId,
         coach_id: coachId,
         log_date: localDateStr(),
-        items: logItems,
+        items: allItems,
         score,
         rx_taken: rxTaken,
       });
@@ -312,6 +397,98 @@ export default function NutritionTab() {
                 </div>
               );
             })}
+          </div>
+
+          {/* ——— «بانک غذاها» (Food bank) ——— */}
+          <div className="card neon-rise bank-section">
+            <h3 className="bank-title">🍏 {t('n.bankTitle')}</h3>
+            <input
+              className="bank-search"
+              type="search"
+              value={bankQuery}
+              placeholder={t('n.bankSearch')}
+              onChange={(e) => setBankQuery(e.target.value)}
+              aria-label={t('n.bankSearch')}
+            />
+            {bankFiltered.length === 0 ? (
+              <p className="cp-empty">{t('n.bankNoResults')}</p>
+            ) : (
+              <div className="bank-grid">
+                {bankFiltered.map((f) => {
+                  const pct = bankPctOfDay(f);
+                  const note = lang === 'fa' ? f.vitaminNoteFA : f.vitaminNoteEN;
+                  return (
+                    <div className="card bank-item" key={f.id}>
+                      <div className="bank-item-head">
+                        <span className="bank-item-name">
+                          {lang === 'fa' ? f.nameFA : f.nameEN}
+                        </span>
+                        <span className="bank-item-serving">
+                          {lang === 'fa' ? f.servingFA : f.servingEN}
+                        </span>
+                      </div>
+                      <div className="bank-item-preview">
+                        +{lang === 'fa' ? '۱ واحد' : '1 unit'} ≈ {num(f.perUnitKcal)}{' '}
+                        {t('n.kcal')}، {num(f.perUnitProtein)} {t('n.g')}{' '}
+                        {t('n.protein')}
+                        <span className="bank-approx"> · {t('n.bankApprox')}</span>
+                      </div>
+                      {pct !== null && (
+                        <div className="bank-item-share">
+                          ≈ {num(pct)}
+                          {lang === 'fa' ? '٪' : '%'} {t('n.bankOfDayTarget')}
+                        </div>
+                      )}
+                      {note && (
+                        <div className="bank-item-note">
+                          {t('n.bankNoteLabel')}: {note}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        className="bank-add"
+                        onClick={() => tapBank(f.id)}
+                      >
+                        {t('n.bankAdd')}
+                        {bankTaps[f.id] ? ` ×${num(bankTaps[f.id])}` : ''}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {bankTodayIds.length > 0 && (
+              <div className="bank-today">
+                <div className="bank-today-title">{t('n.bankTodayTitle')}</div>
+                {bankTodayIds.map((id) => {
+                  const f = FOOD_BANK.find((x) => x.id === id);
+                  if (!f) return null;
+                  const count = bankTaps[id] ?? 0;
+                  return (
+                    <div className="bank-today-row" key={id}>
+                      <span>
+                        {lang === 'fa' ? f.nameFA : f.nameEN} ×{num(count)}
+                      </span>
+                      <span className="bank-today-kcal">
+                        ≈ {num(Math.round(f.perUnitKcal * count))} {t('n.kcal')}
+                      </span>
+                      <button
+                        type="button"
+                        className="bank-today-del"
+                        aria-label={t('n.bankRemove')}
+                        onClick={() => removeBankTap(id)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
+                <div className="bank-today-total">
+                  {t('n.bankApprox')} {num(bankTodayKcal)} {t('n.kcal')}
+                </div>
+              </div>
+            )}
+            <p className="bank-disclaimer">{t('n.bankDisclaimer')}</p>
           </div>
 
           {rx.length > 0 && (
