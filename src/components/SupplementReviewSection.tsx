@@ -159,7 +159,10 @@ export default function SupplementReviewSection({
     setSaving(true);
     try {
       const snapshot = JSON.parse(JSON.stringify(draft)) as Record<string, unknown>;
-      if (demo) {
+      // Local decision write — used in demo mode and as a fallback when the
+      // server table is unreachable (migration not run yet / offline), so the
+      // coach's decision is never silently lost on this device.
+      const writeLocal = (): SupplementReview => {
         const all = readLocalSuppReviews();
         const row: SupplementReview = {
           id: `local-${athleteId}`,
@@ -174,17 +177,24 @@ export default function SupplementReviewSection({
         };
         all[athleteId] = row;
         writeLocalSuppReviews(all);
-        setReview(row);
+        return row;
+      };
+      if (demo) {
+        setReview(writeLocal());
       } else {
-        const row = await saveSupplementReview({
-          athlete_id: athleteId,
-          coach_id: coachId,
-          response_id: response?.id ?? null,
-          status,
-          draft_snapshot: snapshot,
-          coach_note: note,
-        });
-        setReview(row);
+        try {
+          const row = await saveSupplementReview({
+            athlete_id: athleteId,
+            coach_id: coachId,
+            response_id: response?.id ?? null,
+            status,
+            draft_snapshot: snapshot,
+            coach_note: note,
+          });
+          setReview(row);
+        } catch {
+          setReview(writeLocal());
+        }
       }
     } finally {
       setSaving(false);

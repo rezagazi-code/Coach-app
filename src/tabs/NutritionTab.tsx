@@ -86,8 +86,11 @@ function DoctorHandoffCard({ athleteId, athleteName }: { athleteId: string | nul
       if (!athleteId) return;
       try {
         const row = isSupabaseConfigured
-          ? await getSupplementReview(athleteId).catch(() => null)
-          : (readLocalSuppReviews()[athleteId] ?? null);
+          ? (await getSupplementReview(athleteId).catch(() => null)) ??
+            // Fallback: a decision saved locally (migration not run / offline)
+            readLocalSuppReviews()[athleteId] ??
+            null
+          : readLocalSuppReviews()[athleteId] ?? null;
         // Belt-and-suspenders: the handoff renders for approved reviews only
         // (RLS already restricts athlete reads to approved).
         if (alive && row && row.status === 'approved') setReview(row);
