@@ -25,15 +25,22 @@ import Toast from '../components/Toast';
 import { FOOD_BANK, type FoodBankItem } from '../lib/foodBank';
 import {
   getCurrentAthleteId,
+  getSupplementReview,
   isSupabaseConfigured,
   latestNutritionTargetsFor,
   NUTRITION_BANK_SENTINEL,
+  readLocalSuppReviews,
   upsertNutritionLog,
   localDateStr,
   type NutritionFoodItem,
   type NutritionPrescription,
   type NutritionLogItem,
+  type SupplementReview,
 } from '../lib/supabase';
+import {
+  renderDoctorHandoffText,
+  type SupplementDraft,
+} from '../lib/supplementDraft';
 
 const STEP: Record<NutritionFoodItem['unit'], number> = { g: 25, pcs: 1, cup: 0.5, ml: 100 };
 const PLATE_LOCAL = 'km.plate.v1'; // demo-mode / offline per-day cache
@@ -57,6 +64,117 @@ function itemLabel(it: NutritionFoodItem, lang: 'fa' | 'en'): string {
 }
 function rxLabel(rx: NutritionPrescription, lang: 'fa' | 'en'): string {
   return lang === 'fa' ? rx.name_fa : rx.name_en;
+}
+
+/**
+ * 🩺 «گزارش برای پزشک» — doctor handoff card (trainee side).
+ *
+ * RED LINES: renders ONLY from an APPROVED supplement review (coach gate
+ * passed). The trainee never sees the unapproved AI draft. Candidate
+ * language only — no doses, no timing, no prescription. The doctor makes
+ * all dose-level decisions; the existing «نسخه پزشک» checkboxes below
+ * capture what the doctor actually prescribed (names only).
+ */
+function DoctorHandoffCard({ athleteId, athleteName }: { athleteId: string | null; athleteName: string }) {
+  const { t, lang } = useLang();
+  const [review, setReview] = useState<SupplementReview | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!athleteId) return;
+      try {
+        const row = isSupabaseConfigured
+          ? await getSupplementReview(athleteId).catch(() => null)
+          : (readLocalSuppReviews()[athleteId] ?? null);
+        // Belt-and-suspenders: the handoff renders for approved reviews only
+        // (RLS already restricts athlete reads to approved).
+        if (alive && row && row.status === 'approved') setReview(row);
+      } catch {
+        /* leave hidden */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [athleteId]);
+
+  if (!review) return null;
+  const snap = review.draft_snapshot as unknown as Partial<SupplementDraft> | null;
+  const draft: SupplementDraft | null =
+    snap && Array.isArray(snap.candidates) ? (snap as SupplementDraft) : null;
+  if (!draft) return null;
+
+  const copy = async () => {
+    const text = renderDoctorHandoffText(draft, athleteName, null);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2200);
+  };
+
+  const L = (b: { fa: string; en: string }) => (lang === 'fa' ? b.fa : b.en);
+
+  return (
+    <div className="card neon-rise plate-handoff">
+      <h3 className="plate-rx-title">{t('s.reportTitle')}</h3>
+      <p className="plate-rx-hint">{t('s.reportSub')}</p>
+      {draft.screeningSummary?.length > 0 && (
+        <ul className="supp-list">
+          {draft.screeningSummary.map((s, i) => (
+            <li key={i}>{L(s)}</li>
+          ))}
+        </ul>
+      )}
+      {draft.candidates?.length > 0 && (
+        <>
+          <p className="supp-sec-title">{t('s.candidatesTitle')}</p>
+          <ul className="supp-list">
+            {draft.candidates.map((c, i) => (
+              <li key={i} className="supp-candidate">
+                <span className="supp-chip">⚠ {lang === 'fa' ? c.itemFA : c.itemEN}</span>
+                <span className="supp-why">{lang === 'fa' ? c.rationaleFA : c.rationaleEN}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {draft.interactionCautions?.length > 0 && (
+        <ul className="supp-list">
+          {draft.interactionCautions.map((c, i) => (
+            <li key={i} className="supp-caution">
+              {L(c)}
+            </li>
+          ))}
+        </ul>
+      )}
+      {draft.doctorQuestions?.length > 0 && (
+        <>
+          <p className="supp-sec-title">{t('s.doctorQuestionsTitle')}</p>
+          <ul className="supp-list">
+            {draft.doctorQuestions.map((q, i) => (
+              <li key={i}>{L(q)}</li>
+            ))}
+          </ul>
+        </>
+      )}
+      <p className="supp-disclaimer" role="note">
+        ⚠ {L(draft.disclaimer)}
+      </p>
+      <button type="button" className="neon-btn neon-burst" onClick={() => void copy()}>
+        {copied ? t('s.reportCopied') : t('s.reportCopy')}
+      </button>
+    </div>
+  );
 }
 
 function ScoreRing({ score }: { score: number }) {
@@ -517,6 +635,9 @@ export default function NutritionTab() {
               })}
             </div>
           )}
+
+          {/* 🩺 Doctor handoff — renders only from an APPROVED supplement review */}
+          <DoctorHandoffCard athleteId={athleteId} athleteName={auth.athlete?.full_name ?? ''} />
 
           <button
             type="button"

@@ -1875,3 +1875,99 @@ export async function upsertNutritionLog(input: {
   const row = data as NutritionLog;
   return { ...row, items: safeLogItems(row.items) };
 }
+
+// ---------------------------------------------------------------------------
+// Supplement reviews — the doctor-gated supplement pipeline (Reza 2026-10-24).
+// AI draft (supplementDraft.ts) → coach review/approve → DOCTOR gate for any
+// dose-level decision. Same philosophy as the program review queue.
+//
+// RED LINES: the draft never says what a trainee NEEDS (candidates for
+// professional review only), no dosage fields exist anywhere, and the
+// trainee never sees the unapproved draft — only the approved doctor
+// handoff report. Server persistence lives in `supplement_reviews`
+// (migration supabase-supplement-reviews.sql); demo/offline mode uses
+// localStorage via readLocalSuppReviews/writeLocalSuppReviews.
+// ---------------------------------------------------------------------------
+
+export type SupplementReviewStatus = 'pending' | 'approved' | 'rejected';
+
+export interface SupplementReview {
+  id: string;
+  athlete_id: string;
+  coach_id: string | null;
+  response_id: string | null;
+  status: SupplementReviewStatus;
+  /** Snapshot of the AI draft as the coach saw it (jsonb). */
+  draft_snapshot: Record<string, unknown>;
+  coach_note: string;
+  decided_at: string | null;
+  created_at: string;
+}
+
+const SUPP_REVIEW_LOCAL = 'km.suppreview.v1';
+
+export function readLocalSuppReviews(): Record<string, SupplementReview> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SUPP_REVIEW_LOCAL) ?? '{}') as Record<
+      string,
+      SupplementReview
+    >;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function writeLocalSuppReviews(reviews: Record<string, SupplementReview>): void {
+  try {
+    localStorage.setItem(SUPP_REVIEW_LOCAL, JSON.stringify(reviews));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Newest supplement review for the athlete (one row per athlete). */
+export async function getSupplementReview(athleteId: string): Promise<SupplementReview | null> {
+  const { data, error } = await requireClient()
+    .from('supplement_reviews')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as SupplementReview | null) ?? null;
+}
+
+/**
+ * Coach decision on the supplement draft. Upsert keyed on athlete_id — one
+ * review row per athlete, always reflecting the latest questionnaire
+ * response (response_id). No dosage fields exist on this table by design.
+ */
+export async function saveSupplementReview(input: {
+  athlete_id: string;
+  coach_id: string | null;
+  response_id: string | null;
+  status: SupplementReviewStatus;
+  draft_snapshot: Record<string, unknown>;
+  coach_note: string;
+}): Promise<SupplementReview> {
+  const { data, error } = await requireClient()
+    .from('supplement_reviews')
+    .upsert(
+      {
+        athlete_id: input.athlete_id,
+        coach_id: input.coach_id,
+        response_id: input.response_id,
+        status: input.status,
+        draft_snapshot: input.draft_snapshot,
+        coach_note: input.coach_note.slice(0, 2000),
+        decided_at: new Date().toISOString(),
+      },
+      { onConflict: 'athlete_id' }
+    )
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data as SupplementReview;
+}

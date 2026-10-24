@@ -25,6 +25,7 @@ import { useLang, type Lang } from '../lib/i18n';
 import { useAuth } from '../lib/auth';
 import Toast from './Toast';
 import { FOOD_BANK, type FoodBankItem } from '../lib/foodBank';
+import SupplementReviewSection from './SupplementReviewSection';
 import {
   decideReview,
   isSupabaseConfigured,
@@ -1036,6 +1037,9 @@ export default function CoachPanel() {
                     </div>
                   );
                 })()}
+              {/* 🩺 بررسی مکمل — doctor-gated pipeline: AI draft → coach
+                  review → doctor gate. No dosage fields anywhere. */}
+              <SupplementReviewSection athleteId={c.athlete.id} coachId={auth.coach?.id ?? null} />
             </div>
           ))
         )}
