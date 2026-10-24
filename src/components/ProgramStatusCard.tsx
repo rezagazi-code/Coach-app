@@ -110,10 +110,25 @@ export function useAthleteProgramStatus(): ProgramState {
     // Background sync (offline → online): the queue drains without the
     // submit tab's re-dispatch, so a synced aionly program must refresh here.
     window.addEventListener('km-queue-flushed', refresh);
+    // Same trap class as the 0.2.29 doctor-handoff fix: all tabs stay
+    // mounted (display:none), so this effect runs once per app start — a
+    // coach approval arriving while the trainee's app is open would
+    // otherwise never appear until restart, leaving the trainee stuck on
+    // «sent to coach» with the approved program (and its exercise list)
+    // invisible. Re-check whenever the app returns to the foreground:
+    // that is the realistic approval-arrival moment (coach approves,
+    // tells the trainee, the trainee opens/foregrounds the app).
+    const onForeground = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onForeground);
+    window.addEventListener('focus', onForeground);
     return () => {
       alive = false;
       window.removeEventListener('km-submission-stored', refresh);
       window.removeEventListener('km-queue-flushed', refresh);
+      document.removeEventListener('visibilitychange', onForeground);
+      window.removeEventListener('focus', onForeground);
     };
   }, []);
   return state;
