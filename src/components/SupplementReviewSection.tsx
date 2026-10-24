@@ -129,7 +129,10 @@ export default function SupplementReviewSection({
       } else {
         const [resp, rev] = await Promise.all([
           getAthleteLatestResponse(athleteId).catch(() => null),
-          getSupplementReview(athleteId).catch(() => null),
+          getSupplementReview(athleteId)
+            .catch(() => null)
+            // Fallback: a decision saved locally (migration not run / offline)
+            .then((r) => r ?? readLocalSuppReviews()[athleteId] ?? null),
         ]);
         setResponse(resp);
         setReview(rev);
