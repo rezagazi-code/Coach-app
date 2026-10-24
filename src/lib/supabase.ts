@@ -985,8 +985,8 @@ export function submissionQueueDepth(payload: QuestionnaireSubmission): number {
 /**
  * Flush the stored questionnaire submission for a now-identified athlete.
  * Queue-first (the same sync engine as workout logging): the entries are
- * enqueued with their idempotency keys and flushed; only when nothing of
- * this submission remains queued is the stored payload cleared. Safe to
+ * enqueued with their idempotency keys and flushed; only when every
+ * expected row is confirmed synced is the stored payload cleared. Safe to
  * call repeatedly — a second call finds no payload, or finds the rows
  * already confirmed synced (synced-key guard) and enqueues nothing, so a
  * re-run is a true no-op and never re-upserts. Returns 'none' | 'stored'
@@ -1024,8 +1024,31 @@ export async function persistPendingSubmission(input: {
   }
   await flushQueue();
   if (submissionQueueDepth(payload) === 0) {
-    clearPendingSubmission();
-    return 'synced';
+    // An empty queue is NOT proof of sync: flushQueue drops entries after
+    // 25 failed attempts (and past the provenance-hold cap). Clearing here
+    // on a dropped submission reported 'synced' to the callers, the status
+    // card re-read, found no program and no pending payload, and showed
+    // «no program» — the athlete's whole questionnaire silently vanished
+    // (no response, no program, no queue row) with no recovery path.
+    // Only clear when every expected row is confirmed synced; otherwise
+    // keep the payload stored and report 'queued', so the next run
+    // re-enqueues fresh entries — the synced-key guards skip the rows
+    // that did land, so the retry repairs exactly the dropped ones.
+    const programUuid = programClientUuid(payload.clientUuid);
+    const responseSynced = isSubmissionKeySynced('questionnaire_responses', {
+      client_uuid: payload.clientUuid,
+    });
+    const programSynced =
+      payload.redFlagBlocked || isSubmissionKeySynced('programs', { client_uuid: programUuid });
+    const reviewSynced =
+      payload.redFlagBlocked ||
+      payload.track === 'aionly' ||
+      isSubmissionKeySynced('review_queue', { program_client_uuid: programUuid });
+    if (responseSynced && programSynced && reviewSynced) {
+      clearPendingSubmission();
+      return 'synced';
+    }
+    return 'queued';
   }
   return 'queued';
 }
