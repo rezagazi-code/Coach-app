@@ -107,9 +107,13 @@ export function useAthleteProgramStatus(): ProgramState {
     };
     refresh();
     window.addEventListener('km-submission-stored', refresh);
+    // Background sync (offline → online): the queue drains without the
+    // submit tab's re-dispatch, so a synced aionly program must refresh here.
+    window.addEventListener('km-queue-flushed', refresh);
     return () => {
       alive = false;
       window.removeEventListener('km-submission-stored', refresh);
+      window.removeEventListener('km-queue-flushed', refresh);
     };
   }, []);
   return state;

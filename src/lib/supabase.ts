@@ -1653,11 +1653,25 @@ export async function flushQueue(): Promise<{ flushed: number; pending: number }
 
 // Sync automatically when connectivity returns.
 if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => {
-    void flushQueue();
-  });
+  // When a background flush drains the queue completely, announce it so
+  // status views that depend on synced rows can re-read. The in-session
+  // submit path re-dispatches its own event (QuestionnaireTab), but these
+  // background paths had nothing: e.g. an aionly questionnaire submitted
+  // offline would sync here and the program-status card would stay on
+  // «pending» until the next app restart. Only the full-drain transition
+  // announces (flushed > 0 && nothing left) — not every no-op flush.
+  const flushThenAnnounce = () => {
+    flushQueue()
+      .then(({ flushed, pending }) => {
+        if (flushed > 0 && pending === 0) {
+          window.dispatchEvent(new CustomEvent('km-queue-flushed'));
+        }
+      })
+      .catch((err) => console.error('[offline-queue] background flush failed', err));
+  };
+  window.addEventListener('online', flushThenAnnounce);
   window.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') void flushQueue();
+    if (document.visibilityState === 'visible') flushThenAnnounce();
   });
 }
 
