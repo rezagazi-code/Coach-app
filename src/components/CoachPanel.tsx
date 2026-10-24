@@ -577,6 +577,10 @@ export default function CoachPanel() {
       try {
         await deleteAthlete(athleteId);
         setCards((prev) => prev.filter((c) => c.athlete.id !== athleteId));
+        // The review queue is a separate list — without this, a deleted
+        // athlete with a pending review would leave a ghost card whose
+        // detail opens on cascade-wiped rows (dead-end + error toast).
+        setReviews((prev) => prev.filter((r) => r.athleteId !== athleteId));
         showToast(t('cp.deleteTraineeDone') + ' — ' + t('cp.deleteTraineeAuthNote'));
       } catch (err) {
         console.error('[coach-panel] delete trainee failed', err);
