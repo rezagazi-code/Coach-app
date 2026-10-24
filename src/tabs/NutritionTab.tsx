@@ -28,7 +28,9 @@ import {
   getSupplementReview,
   isSupabaseConfigured,
   latestNutritionTargetsFor,
+  latestNutritionLogFor,
   NUTRITION_BANK_SENTINEL,
+  NUTRITION_RX_SENTINEL,
   readLocalSuppReviews,
   upsertNutritionLog,
   localDateStr,
@@ -283,6 +285,10 @@ export default function NutritionTab() {
         }
         return;
       }
+      // Fresh prescription keys, for the server-log seed below: seeding
+      // rx ticks must respect the same prune, or a removed prescription
+      // would come back as «taken» from yesterday's saved log.
+      let freshKeys: Set<string> | null = null;
       try {
         if (!athleteId) {
           if (alive && !silent) setLoading(false);
@@ -297,12 +303,13 @@ export default function NutritionTab() {
           // the plate: rxDone is keyed by name, not by the live rx list,
           // so without this a removed name would still ride the next
           // «ثبت روز» as taken — a ghost prescription in the coach's log.
-          const freshKeys = new Set(freshRx.map((p) => `${p.name_fa}|${p.name_en}`));
+          freshKeys = new Set(freshRx.map((p) => `${p.name_fa}|${p.name_en}`));
+          const keys = freshKeys;
           setRxDone((prev) => {
             let changed = false;
             const next: Record<string, boolean> = {};
             for (const [k, v] of Object.entries(prev)) {
-              if (freshKeys.has(k)) next[k] = v;
+              if (keys.has(k)) next[k] = v;
               else changed = true;
             }
             if (changed) persistRxLocal(next);
@@ -311,6 +318,80 @@ export default function NutritionTab() {
         }
       } catch (err) {
         console.error('[nutrition] targets load failed', err);
+      }
+      // Seed today's plate from the server's saved log when this device
+      // has no local cache for today (reinstall / new device / cleared
+      // storage). Without this the plate renders all zeros, and one
+      // «ثبت روز» tap overwrites the saved day with a zero log — the
+      // save is a full-row upsert, not a merge, so the saved day silently
+      // vanishes. Local taps always win: categories with a today cache
+      // are skipped, and the functional merge keeps any key tapped after
+      // the cache check. Runs after the targets fetch so the rx prune
+      // above (not a resurrected tick) decides what «taken» means.
+      if (athleteId) {
+        try {
+          const log = await latestNutritionLogFor(athleteId, 0);
+          if (alive && log && log.log_date === localDateStr()) {
+            const hasTodayCache = (key: string): boolean => {
+              try {
+                const raw = localStorage.getItem(key);
+                if (!raw) return false;
+                return (JSON.parse(raw) as { date?: string }).date === localDateStr();
+              } catch {
+                return false;
+              }
+            };
+            if (!hasTodayCache(PLATE_LOCAL)) {
+              const seeded: Record<string, number> = {};
+              for (const it of log.items) {
+                if (it.key === NUTRITION_RX_SENTINEL || it.key === NUTRITION_BANK_SENTINEL) continue;
+                if (typeof it.amount === 'number') seeded[it.key] = it.amount;
+              }
+              if (Object.keys(seeded).length > 0) {
+                setLogged((prev) => {
+                  const next = { ...seeded, ...prev };
+                  persistLocal(next);
+                  return next;
+                });
+              }
+            }
+            if (!hasTodayCache(BANK_LOCAL)) {
+              const seededBank: Record<string, number> = {};
+              for (const it of log.items) {
+                if (it.key !== NUTRITION_BANK_SENTINEL || typeof it.bankId !== 'string') continue;
+                if (typeof it.amount === 'number' && it.amount > 0) {
+                  seededBank[it.bankId] = (seededBank[it.bankId] ?? 0) + it.amount;
+                }
+              }
+              if (Object.keys(seededBank).length > 0) {
+                setBankTaps((prev) => {
+                  const next = { ...seededBank, ...prev };
+                  persistBank(next);
+                  return next;
+                });
+              }
+            }
+            if (freshKeys && !hasTodayCache(PLATE_LOCAL_RX)) {
+              const seededRx: Record<string, boolean> = {};
+              for (const it of log.items) {
+                if (it.key !== NUTRITION_RX_SENTINEL || !Array.isArray(it.rxTaken)) continue;
+                for (const k of it.rxTaken) {
+                  if (typeof k === 'string' && freshKeys.has(k)) seededRx[k] = true;
+                }
+              }
+              if (Object.keys(seededRx).length > 0) {
+                setRxDone((prev) => {
+                  const next = { ...seededRx, ...prev };
+                  persistRxLocal(next);
+                  return next;
+                });
+              }
+            }
+            setSavedToday(true);
+          }
+        } catch (err) {
+          console.error('[nutrition] server log seed failed', err);
+        }
       }
       if (alive && !silent) setLoading(false);
     };
