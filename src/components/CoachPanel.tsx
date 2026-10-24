@@ -350,9 +350,14 @@ export default function CoachPanel() {
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setLoadError(false);
+  // Silent foreground re-checks must not flash the loading state or an
+  // error banner over a queue the coach is already looking at: a transient
+  // read failure just leaves the last good queue in place.
+  const load = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setLoadError(false);
+    }
     if (!isSupabaseConfigured) {
       setReviews(demoReviews(lang));
       const demoCards = demoAthleteCards(lang);
@@ -378,7 +383,7 @@ export default function CoachPanel() {
       setOverFlags({
         'demo-athlete-1': [lang === 'fa' ? 'مرغ (سینه)' : 'Chicken breast'],
       });
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
     const loadSeq = ++loadSeqRef.current;
@@ -453,13 +458,30 @@ export default function CoachPanel() {
       });
     } catch (err) {
       console.error('[coach-panel] load failed', err);
-      setLoadError(true);
+      if (!silent) setLoadError(true);
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, [lang]);
 
   useEffect(() => {
     void load();
+    // Same trap class as the 0.2.29/0.2.30 trainee-side fixes, mirrored to
+    // the coach side: CoachPanel is the coach's home screen and stays
+    // mounted, so this effect runs once per app start — a trainee
+    // submission arriving while the coach's app was open never appeared
+    // in the review queue until restart. Re-check silently whenever the
+    // app returns to the foreground: that is the realistic
+    // submission-arrival moment (trainee submits, tells the coach, the
+    // coach opens/foregrounds the app).
+    const onForeground = () => {
+      if (document.visibilityState === 'visible') void load(true);
+    };
+    document.addEventListener('visibilitychange', onForeground);
+    window.addEventListener('focus', onForeground);
+    return () => {
+      document.removeEventListener('visibilitychange', onForeground);
+      window.removeEventListener('focus', onForeground);
+    };
   }, [load]);
 
   const openDetail = useCallback(async (card: ReviewCard) => {

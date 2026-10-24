@@ -10,7 +10,7 @@
  *   the «گزارش برای پزشک» handoff card on the trainee's nutrition tab.
  * - Demo/offline mode: review state in localStorage (km.suppreview.v1).
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLang } from '../lib/i18n';
 import {
   getAthleteLatestResponse,
@@ -105,17 +105,20 @@ export default function SupplementReviewSection({
   const [review, setReview] = useState<SupplementReview | null>(null);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+  // A note the coach typed but has not saved yet must survive a reload;
+  // without this, re-expanding after a trainee resubmission would wipe it.
+  const noteDirtyRef = useRef(false);
 
   const demo = !isSupabaseConfigured;
 
   const load = async () => {
-    if (loaded || loading) return;
+    if (loading) return;
     setLoading(true);
     try {
       if (demo) {
         const local = readLocalSuppReviews()[athleteId] ?? null;
         setReview(local);
-        setNote(local?.coach_note ?? '');
+        if (!noteDirtyRef.current) setNote(local?.coach_note ?? '');
         setResponse({
           id: `demo-response-${athleteId}`,
           athlete_id: athleteId,
@@ -136,7 +139,7 @@ export default function SupplementReviewSection({
         ]);
         setResponse(resp);
         setReview(rev);
-        setNote(rev?.coach_note ?? '');
+        if (!noteDirtyRef.current) setNote(rev?.coach_note ?? '');
       }
     } finally {
       setLoading(false);
@@ -147,6 +150,10 @@ export default function SupplementReviewSection({
   const toggle = () => {
     const next = !open;
     setOpen(next);
+    // Reload on EVERY expand, not just the first: the old loaded-gate
+    // froze the section at its first read, so a trainee resubmission after
+    // that never surfaced — the coach could decide (response_id and all)
+    // on a superseded draft while a fresh submission waited in the queue.
     if (next) void load();
   };
 
@@ -302,7 +309,10 @@ export default function SupplementReviewSection({
                   rows={2}
                   value={note}
                   placeholder={t('s.coachNotePh')}
-                  onChange={(e) => setNote(e.target.value)}
+                  onChange={(e) => {
+                    noteDirtyRef.current = true;
+                    setNote(e.target.value);
+                  }}
                 />
               </label>
               <div className="supp-actions">
