@@ -81,9 +81,20 @@ export default function QuestionnaireTab() {
       // so a submit in this session updates the card without an app restart.
       window.dispatchEvent(new CustomEvent('km-submission-stored'));
       if (athlete?.coachId) {
-        void persistPendingSubmission({ athleteId: athlete.id, coachId: athlete.coachId }).catch(
-          (err) => console.error('[questionnaire] submit persist failed (queued)', err)
-        );
+        // The status card refreshed on the event above — but at that point
+        // the program row isn't in the DB yet (the offline queue flushes
+        // asynchronously). For coach tracks this is invisible (pending and
+        // in_review render identically), but an aionly program becomes
+        // 'active' instantly and must appear right away — so re-fire the
+        // event once the queue has actually synced, or the card stays on
+        // "pending" forever until an app restart.
+        void persistPendingSubmission({ athleteId: athlete.id, coachId: athlete.coachId })
+          .then((result) => {
+            if (result === 'synced') {
+              window.dispatchEvent(new CustomEvent('km-submission-stored'));
+            }
+          })
+          .catch((err) => console.error('[questionnaire] submit persist failed (queued)', err));
       }
       // No athlete yet (onboarding funnel): the payload stays stored and
       // signUpAthlete flushes it after the profile rows are written.

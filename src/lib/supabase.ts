@@ -770,6 +770,25 @@ export async function getAthleteLatestProgram(
  * public/questionnaire.html), which is what the workout tab renders the
  * approved session from.
  */
+/**
+ * Delete a trainee COMPLETELY. Removes the athletes row; the schema's
+ * ON DELETE CASCADE FKs then wipe all of the athlete's app data
+ * (questionnaire_responses, programs + items/feedback/review_queue,
+ * nutrition_targets/logs, supplement_reviews, workout_sessions + sets,
+ * meal/sleep/water logs, checklist, xp_events, messages, quiz attempts,
+ * etc.). RLS (pol2_athletes_coach_scoped) restricts this to the coach's
+ * own athletes, and supabase-athlete-delete.sql adds the one missing
+ * cascade policy (athlete_coaches DELETE).
+ *
+ * The auth.users login row CANNOT be deleted with the client key — the
+ * coach must remove it from the Supabase dashboard (Authentication).
+ * Throws on server/RLS errors so the UI can show a proper error toast
+ * (never a silent no-op).
+ */
+export async function deleteAthlete(athleteId: string): Promise<void> {
+  const { error } = await requireClient().from('athletes').delete().eq('id', athleteId);
+  if (error) throw error;
+}
 export async function getAthleteLatestResponse(
   athleteId: string
 ): Promise<QuestionnaireResponse | null> {

@@ -28,6 +28,7 @@ import { FOOD_BANK, type FoodBankItem } from '../lib/foodBank';
 import SupplementReviewSection from './SupplementReviewSection';
 import {
   decideReview,
+  deleteAthlete,
   isSupabaseConfigured,
   latestNutritionLogFor,
   latestNutritionTargetsFor,
@@ -324,6 +325,11 @@ export default function CoachPanel() {
   const [plateSaving, setPlateSaving] = useState<string | null>(null);
   // athleteId -> labels of food items eaten OVER target in recent logs.
   const [overFlags, setOverFlags] = useState<Record<string, string[]>>({});
+  // «حذف شاگرد» — double-confirm delete: first tap arms the button,
+  // second tap deletes. Armed per athlete id; deletingId tracks the
+  // in-flight delete so the button can't be double-fired.
+  const [deleteArmed, setDeleteArmed] = useState<Record<string, boolean>>({});
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const localPlates = useRef<Record<string, PlateDraft>>(readLocalPlates());
   // Guards the openDetail async fetch: an earlier card's response must not
   // overwrite the answers/flags of a card opened afterwards (coach taps A,
@@ -553,6 +559,33 @@ export default function CoachPanel() {
       setSavingNoteFor(null);
     },
     [drafts, showToast, t]
+  );
+
+  // ------------------------------------------------- «حذف شاگرد» (delete trainee)
+  // Double-confirm: first tap arms the button ("tap again to confirm"),
+  // second tap deletes the athletes row — FK cascades wipe all app data.
+  // The auth.users login row cannot be deleted client-side; the success
+  // toast tells the coach to remove it from the Supabase dashboard.
+  const handleDeleteTrainee = useCallback(
+    async (athleteId: string) => {
+      if (!deleteArmed[athleteId]) {
+        setDeleteArmed((prev) => ({ ...prev, [athleteId]: true }));
+        return;
+      }
+      setDeleteArmed((prev) => ({ ...prev, [athleteId]: false }));
+      setDeletingId(athleteId);
+      try {
+        await deleteAthlete(athleteId);
+        setCards((prev) => prev.filter((c) => c.athlete.id !== athleteId));
+        showToast(t('cp.deleteTraineeDone') + ' — ' + t('cp.deleteTraineeAuthNote'));
+      } catch (err) {
+        console.error('[coach-panel] delete trainee failed', err);
+        showToast(t('cp.deleteTraineeFail'));
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [deleteArmed, showToast, t]
   );
 
   const fmtDate = (iso: string | null): string =>
@@ -1040,6 +1073,21 @@ export default function CoachPanel() {
               {/* 🩺 بررسی مکمل — doctor-gated pipeline: AI draft → coach
                   review → doctor gate. No dosage fields anywhere. */}
               <SupplementReviewSection athleteId={c.athlete.id} coachId={auth.coach?.id ?? null} />
+              {/* 🗑 حذف شاگرد — double-confirm destructive action. */}
+              <button
+                type="button"
+                className={
+                  deleteArmed[c.athlete.id] ? 'cp-delete-btn armed' : 'cp-delete-btn'
+                }
+                disabled={deletingId === c.athlete.id}
+                onClick={() => void handleDeleteTrainee(c.athlete.id)}
+              >
+                {deletingId === c.athlete.id
+                  ? t('auth.pleaseWait')
+                  : deleteArmed[c.athlete.id]
+                    ? t('cp.deleteTraineeConfirm')
+                    : `🗑 ${t('cp.deleteTrainee')}`}
+              </button>
             </div>
           ))
         )}
