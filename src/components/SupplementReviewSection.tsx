@@ -194,6 +194,13 @@ export default function SupplementReviewSection({
             draft_snapshot: snapshot,
             coach_note: note,
           });
+          // Mirror the server-confirmed row into the local fallback store:
+          // without this, a later offline load reads the stale pre-decision
+          // row (e.g. an approved handoff still showing after a reject, or
+          // a fresh approval invisible) when the server fetch fails.
+          const all = readLocalSuppReviews();
+          all[athleteId] = row;
+          writeLocalSuppReviews(all);
           setReview(row);
         } catch {
           setReview(writeLocal());
@@ -237,6 +244,11 @@ export default function SupplementReviewSection({
             draft_snapshot: review.draft_snapshot,
             coach_note: review.coach_note,
           });
+          // Same mirror as decide(): a server-confirmed reopen must not
+          // leave a stale 'approved' row in the offline fallback store.
+          const all = readLocalSuppReviews();
+          all[athleteId] = row;
+          writeLocalSuppReviews(all);
           setReview(row);
         } catch {
           writeLocalPending();
