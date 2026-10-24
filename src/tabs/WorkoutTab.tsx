@@ -24,6 +24,7 @@ import {
   enqueueWrite,
   enqueueLoggedSet,
   getCurrentAthleteId,
+  localDateStr,
   newClientUuid,
   flushQueue,
   type Program,
@@ -137,7 +138,12 @@ function SetLogger({ spec }: { spec: LoggerSpec }) {
   // compute duration_min without re-sending started_at (which would
   // clobber the true start on the conflict→UPDATE path).
   const sessionIdRef = useRef<{ id: string; startedAtMs: number } | null>(null);
-  const todayISO = () => new Date().toISOString().slice(0, 10);
+  // The session's calendar day is the DEVICE's local day — the same
+  // convention as NutritionTab's log_date (localDateStr). The old
+  // toISOString() slice is UTC, so a session logged 00:00–03:30 Tehran
+  // was dated the previous day and the coach's date-ordered session list
+  // misplaced it; started_at already carries the true UTC timestamp.
+  const todayISO = () => localDateStr();
 
   const ensureSession = (): string => {
     const existing = sessionIdRef.current;

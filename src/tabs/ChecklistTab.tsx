@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import { useLang } from '../lib/i18n';
 import Toast from '../components/Toast';
-import { enqueueXpEvent, getCurrentAthleteId } from '../lib/supabase';
+import { enqueueXpEvent, getCurrentAthleteId, localDateStr } from '../lib/supabase';
 
 interface Habit {
   key: 'water' | 'sleep' | 'steps' | 'mobility';
@@ -45,7 +45,13 @@ export default function ChecklistTab() {
       // additive-only by design). NOTE: checklist_completions rows are NOT
       // written — their FK needs real checklist_items rows (coach-assigned
       // habits feature), which don't exist for these built-in habits.
-      const date = new Date().toISOString().slice(0, 10);
+      // The habit's day is the DEVICE's local day (localDateStr), matching
+      // NutritionTab's per-day caches and log_date. The old UTC slice cut
+      // the day at 03:30 Tehran: a habit done late at night and again
+      // after midnight fell in one UTC day, so the second tap showed the
+      // «+۲ XP» toast while the ledger's client_uuid pre-check silently
+      // dropped it as a duplicate.
+      const date = localDateStr();
       enqueueXpEvent({
         athlete_id: getCurrentAthleteId(),
         event_type: 'habit_checklist',
