@@ -582,10 +582,12 @@
 
             <div class="grid">
               <div class="field">
-                <label>پست تخصصی در زمین *</label>
-                <div class="choices">
-                  <label class="choice"><input type="radio" name="vipSide" value="left" /><span class="box">سمت چپ<small>پست تهاجمی، اسمش‌زن اصلی</small></span></label>
-                  <label class="choice"><input type="radio" name="vipSide" value="right" /><span class="box">سمت راست<small>پست بازیساز و دفاعی</small></span></label>
+                <label>سابقه تمرین قدرتی (بدنسازی با وزنه) *</label>
+                <div class="choices cols2">
+                  <label class="choice"><input type="radio" name="strengthBg" value="none" /><span class="box">ندارم</span></label>
+                  <label class="choice"><input type="radio" name="strengthBg" value="lt_1y" /><span class="box">کمتر از ۱ سال</span></label>
+                  <label class="choice"><input type="radio" name="strengthBg" value="y1_3" /><span class="box">۱ تا ۳ سال</span></label>
+                  <label class="choice"><input type="radio" name="strengthBg" value="gt_3y" /><span class="box">بیش از ۳ سال</span></label>
                 </div>
               </div>
               <div class="field">
@@ -608,13 +610,22 @@
                 </div>
               </div>
               <div class="field">
-                <label>ضربه‌ای که در آن ضعف احساس می‌کنید *</label>
-                <div class="choices">
-                  <label class="choice"><input type="radio" name="overheadWeak" value="bandeja" /><span class="box">باندخا (Bandeja)</span></label>
-                  <label class="choice"><input type="radio" name="overheadWeak" value="vibora" /><span class="box">ویبورا (Vibora)</span></label>
-                  <label class="choice"><input type="radio" name="overheadWeak" value="smash" /><span class="box">اسمش پرشی (Smash)</span></label>
-                  <label class="choice"><input type="radio" name="overheadWeak" value="bajada" /><span class="box">باخادا (Bajada)</span></label>
+                <label>تجربه تمرین انفجاری / پلایومتریک *</label>
+                <div class="choices cols2">
+                  <label class="choice"><input type="radio" name="explosiveBg" value="none" /><span class="box">ندارم</span></label>
+                  <label class="choice"><input type="radio" name="explosiveBg" value="some" /><span class="box">کمی (تفریحی)</span></label>
+                  <label class="choice"><input type="radio" name="explosiveBg" value="regular" /><span class="box">منظم</span></label>
                 </div>
+              </div>
+            </div>
+
+            <div class="field" style="margin-top:16px">
+              <label>کدام عضله‌ها را برای پدل قوی‌تر می‌خواهی؟ (چند گزینه) *</label>
+              <div class="choices">
+                <label class="choice"><input type="checkbox" name="padelMuscles" value="legs" /><span class="box">پا و سرین<small>لانج و حرکت انفجاری</small></span></label>
+                <label class="choice"><input type="checkbox" name="padelMuscles" value="core" /><span class="box">کر چرخشی<small>چرخش تنه</small></span></label>
+                <label class="choice"><input type="checkbox" name="padelMuscles" value="shoulder" /><span class="box">شانه و کتف<small>ثبات ضربه‌های هوایی</small></span></label>
+                <label class="choice"><input type="checkbox" name="padelMuscles" value="forearm" /><span class="box">ساعد و مچ<small>کنترل راکت</small></span></label>
               </div>
             </div>
 
@@ -881,11 +892,21 @@ const EN_TEXT = {
   "لطفاً وضعیت سابقه و آسیب را مشخص کنید.": "Please set your experience and injury status.",
   "آنالیز تخصصی پدل": "Specialized padel analysis",
   "این بخش برنامه باشگاهی شما را با نیازهای واقعی پدل هماهنگ می‌کند.": "This section aligns your gym program with the real demands of padel.",
-  "پست تخصصی در زمین *": "Your court position *",
-  "سمت چپ": "Left side",
-  "پست تهاجمی، اسمش‌زن اصلی": "Attacking position, main smasher",
-  "سمت راست": "Right side",
-  "پست بازیساز و دفاعی": "Playmaking, defensive position",
+  "سابقه تمرین قدرتی (بدنسازی با وزنه) *": "Strength-training (weighted gym) background *",
+  "ندارم": "None",
+  "بیش از ۳ سال": "3+ years",
+  "تجربه تمرین انفجاری / پلایومتریک *": "Explosive / plyometric training experience *",
+  "کمی (تفریحی)": "Some (casual)",
+  "منظم": "Regular",
+  "کدام عضله‌ها را برای پدل قوی‌تر می‌خواهی؟ (چند گزینه) *": "Which muscle groups do you want to strengthen for padel? (multiple) *",
+  "پا و سرین": "Legs & glutes",
+  "لانج و حرکت انفجاری": "Lunges & explosive steps",
+  "کر چرخشی": "Rotational core",
+  "چرخش تنه": "Trunk rotation",
+  "شانه و کتف": "Shoulders & shoulder blades",
+  "ثبات ضربه‌های هوایی": "Overhead-shot stability",
+  "ساعد و مچ": "Forearms & wrists",
+  "کنترل راکت": "Racket control",
   "نوع بالانس راکت شما *": "Your racket balance type *",
   "الماسی / سرسنگین": "Diamond / head-heavy",
   "قدرت اسمش بالا؛ فشار بیشتر روی شانه و مچ": "High smash power; more load on shoulder and wrist",
@@ -897,11 +918,6 @@ const EN_TEXT = {
   "تنیس خاکی": "Clay tennis",
   "اسکواش / بدمینتون": "Squash / badminton",
   "هیچ‌کدام": "None",
-  "ضربه‌ای که در آن ضعف احساس می‌کنید *": "Shot you feel weakest at *",
-  "باندخا (Bandeja)": "Bandeja",
-  "ویبورا (Vibora)": "Vibora",
-  "اسمش پرشی (Smash)": "Jump smash (Smash)",
-  "باخادا (Bajada)": "Bajada",
   "جلسات بازی پدل در هفته *": "Padel match sessions per week *",
   "۱ جلسه (تفریحی)": "1 session (casual)",
   "۲ جلسه (منظم)": "2 sessions (regular)",
@@ -1323,10 +1339,11 @@ function validateKey(key){
     errId = "err3";
   }
   if(key === "vip"){
-    if(!radioVal("vipSide")) miss("پست تخصصی", "court position");
+    if(!radioVal("strengthBg")) miss("سابقه تمرین قدرتی", "strength-training background");
     if(!radioVal("racketType")) miss("نوع بالانس راکت", "racket balance");
     if(!radioVal("racketPast")) miss("سابقه ورزش راکتی", "racket-sport history");
-    if(!radioVal("overheadWeak")) miss("ضربه ضعیف", "weakest shot");
+    if(!radioVal("explosiveBg")) miss("تجربه تمرین انفجاری", "explosive training experience");
+    if($$('input[name="padelMuscles"]:checked').length === 0) miss("عضله‌های هدف پدل", "padel target muscles");
     if(!radioVal("vipSessions")) miss("جلسات پدل هفتگی", "weekly padel sessions");
     errId = "errVip";
   }
@@ -1432,11 +1449,18 @@ const EX_DB = {
   ohp:       { name:"پرس سرشانه دمبل نشسته", sets:"۳ ست × ۸–۱۰ تکرار", note:"کمر به صندلی چسبیده؛ قوس نده", nameEn:"Seated dumbbell shoulder press", setsEn:"3 sets × 8–10 reps", noteEn:"Back glued to the bench; don't arch", video:"https://musclewiki.com/exercise/dumbbell-seated-overhead-press", eq:["dumbbell"] },
   lunge:     { name:"لانج قدم‌زنی", sets:"۳ ست × ۱۰ قدم هر پا", note:"زانوی جلو از پنجه جلوتر نرود", nameEn:"Walking lunge", setsEn:"3 sets × 10 steps per leg", noteEn:"Front knee must not pass the toes", video:"", eq:["bodyweight","dumbbell"] },
   plank:     { name:"پلانک", sets:"۳ ست × ۳۰–۴۵ ثانیه", note:"بدن یک خط مستقیم؛ باسن بالا نرود", nameEn:"Plank", setsEn:"3 sets × 30–45 seconds", noteEn:"Body in one straight line; hips don't rise", video:"https://musclewiki.com/exercise/plank", eq:["bodyweight"] },
-  facepull:  { name:"فیس‌پول با طناب", sets:"۳ ست × ۱۲–۱۵ تکرار", note:"چرخش خارجی آرنج در انتها", nameEn:"Rope face pull", setsEn:"3 sets × 12–15 reps", noteEn:"External rotation at the end", video:"", eq:["cable","band"] },
-  rotCable:  { name:"وودچاپ کابل مورب", sets:"۳ ست × ۱۰ تکرار هر سمت", note:"چرخش از تنه، نه از دست", nameEn:"Diagonal cable wood-chop", setsEn:"3 sets × 10 reps per side", noteEn:"Rotate from the trunk, not the arms", tag:"padel", video:"", eq:["cable","band"] },
-  bulgarian: { name:"اسپلیت اسکوات بلغاری", sets:"۳ ست × ۸–۱۰ تکرار هر پا", note:"پاشنه پای جلو محکم به زمین", nameEn:"Bulgarian split squat", setsEn:"3 sets × 8–10 reps per leg", noteEn:"Front heel planted firmly", tag:"padel", video:"https://musclewiki.com/exercise/bulgarian-split-squat", eq:["bodyweight","dumbbell"] },
-  wristArmor:{ name:"تقویت مچ (ایزومتریک)", sets:"۳ ست × ۲۰ ثانیه", note:"مچ صاف و بدون لرزش", nameEn:"Wrist strengthening (isometric)", setsEn:"3 sets × 20 seconds", noteEn:"Wrist straight, no shaking", tag:"prev", video:"", eq:["bodyweight"] },
-  mobility:  { name:"روتین موبیلیتی خانگی (۱۰–۱۵ دقیقه)", sets:"روزانه", note:"شانه، لگن، مچ پا؛ بدون وزنه", nameEn:"Home mobility routine (10–15 min)", setsEn:"Daily", noteEn:"Shoulders, hips, ankles; no weights", video:"", eq:["bodyweight"] }
+  facepull:  { name:"فیس‌پول با طناب", sets:"۳ ست × ۱۲–۱۵ تکرار", note:"چرخش خارجی آرنج در انتها", nameEn:"Rope face pull", setsEn:"3 sets × 12–15 reps", noteEn:"External rotation at the end", mg:"shoulder", video:"", eq:["cable","band"] },
+  rotCable:  { name:"وودچاپ کابل مورب", sets:"۳ ست × ۱۰ تکرار هر سمت", note:"چرخش از تنه، نه از دست", nameEn:"Diagonal cable wood-chop", setsEn:"3 sets × 10 reps per side", noteEn:"Rotate from the trunk, not the arms", tag:"padel", mg:"core", video:"", eq:["cable","band"] },
+  bulgarian: { name:"اسپلیت اسکوات بلغاری", sets:"۳ ست × ۸–۱۰ تکرار هر پا", note:"پاشنه پای جلو محکم به زمین", nameEn:"Bulgarian split squat", setsEn:"3 sets × 8–10 reps per leg", noteEn:"Front heel planted firmly", tag:"padel", mg:"legs", video:"https://musclewiki.com/exercise/bulgarian-split-squat", eq:["bodyweight","dumbbell"] },
+  wristArmor:{ name:"تقویت مچ (ایزومتریک)", sets:"۳ ست × ۲۰ ثانیه", note:"مچ صاف و بدون لرزش", nameEn:"Wrist strengthening (isometric)", setsEn:"3 sets × 20 seconds", noteEn:"Wrist straight, no shaking", tag:"prev", mg:"forearm", video:"", eq:["bodyweight"] },
+  mobility:  { name:"روتین موبیلیتی خانگی (۱۰–۱۵ دقیقه)", sets:"روزانه", note:"شانه، لگن، مچ پا؛ بدون وزنه", nameEn:"Home mobility routine (10–15 min)", setsEn:"Daily", noteEn:"Shoulders, hips, ankles; no weights", video:"", eq:["bodyweight"] },
+  /* Explosive / plyometric block for padel tracks (Reza: strengthen the muscles
+     padel engages, then make them explosive). Bodyweight-only; video:"" left
+     empty — never invent URLs. */
+  splitJump: { name:"لانج پرشی (تعویض پا در هوا)", sets:"۳ ست × ۸ تکرار هر پا", note:"فرود نرم روی پنجه؛ زانو در راستای پنجه", nameEn:"Jump lunge (scissor jump)", setsEn:"3 sets × 8 reps per leg", noteEn:"Soft landing on the forefoot; knee tracks over toes", tag:"padel", explosive:true, mg:"legs", video:"", eq:["bodyweight"] },
+  jumpSquat: { name:"اسکوات پرشی", sets:"۳ ست × ۸–۱۰ تکرار", note:"پرش انفجاری؛ فرود با زانوی نرم", nameEn:"Jump squat", setsEn:"3 sets × 8–10 reps", noteEn:"Explosive jump; land with soft knees", tag:"padel", explosive:true, mg:"legs", video:"", eq:["bodyweight"] },
+  latBound:  { name:"جهش جانبی (اسکیت‌جامپ)", sets:"۳ ست × ۱۰ تکرار هر سمت", note:"فرود تک‌پا با تعادل؛ حرکت جانبی مثل پدل", nameEn:"Lateral bounds (skater jumps)", setsEn:"3 sets × 10 reps per side", noteEn:"Single-leg landing with balance; lateral like padel", tag:"padel", explosive:true, mg:"legs", video:"", eq:["bodyweight"] },
+  plyoPush:  { name:"شنای انفجاری", sets:"۳ ست × ۶–۸ تکرار", note:"فشار انفجاری؛ دست‌ها لحظه‌ای از زمین جدا شود", nameEn:"Plyometric push-up", setsEn:"3 sets × 6–8 reps", noteEn:"Explosive press; hands leave the floor briefly", tag:"padel", explosive:true, mg:"shoulder", video:"", eq:["bodyweight"] }
 };
 /* Home-friendly alternatives (preference order) when the main pick is filtered out. */
 const HOME_ALT = {
@@ -1491,11 +1515,26 @@ function buildProgramExercises(d, path){
     if(eqOk(e)) return { id: key, adapted: false, ex: e };
     return { id: key, adapted: true, ex: e }; // last resort: original - the coach sees the equipment and adjusts
   };
+  // Padel philosophy (Reza): the program revolves around (1) strengthening the
+  // muscles padel engages, then (2) explosive movements that make those muscles
+  // stronger. The questionnaire asks about FITNESS — never padel tactics.
+  const PADEL_STRENGTH = ["bulgarian","rotCable","facepull","wristArmor"]; // legs / rotational core / rotator cuff / forearms
+  const PADEL_EXPLOSIVE = ["splitJump","latBound","jumpSquat","plyoPush"];
+  // Order the padel block so the athlete's picked target muscle groups come first.
+  const mgOf = k => (EX_DB[k] && EX_DB[k].mg) || "";
+  const pickedMG = d.padelMuscles || [];
+  const orderByMG = arr => arr.slice().sort((a,b) =>
+    (pickedMG.includes(mgOf(b)) ? 1 : 0) - (pickedMG.includes(mgOf(a)) ? 1 : 0));
+  const padelBlock = orderByMG(PADEL_STRENGTH.concat(PADEL_EXPLOSIVE));
+  // vip (gym+padel): the gym base already covers legs — supplement with the padel
+  // strength work plus the two most padel-specific explosives (split-step, lateral).
+  const vipPadelExtra = orderByMG(PADEL_STRENGTH.concat(["splitJump","latBound"]));
   const showPadel = path === "vip" || path === "padel" || d.pbPlay === "yes";
   const keys = path === "padel"
-    ? ["rotCable","bulgarian","facepull","wristArmor","mobility"]
+    ? padelBlock.concat(["mobility"])
     : ["squat","bench","row","ohp","deadlift","lunge","plank"].concat(
-        showPadel ? ["rotCable","facepull","wristArmor"] : []);
+        path === "vip" ? vipPadelExtra
+        : (showPadel ? orderByMG(PADEL_STRENGTH) : [])); // aionly+padel: strength only (no-coach track stays conservative)
   const picked = keys.map(pickOne);
   return {
     adapted: picked.some(p => p.adapted),
@@ -1525,10 +1564,19 @@ const EQUIP_TXT = { barbell:"هالتر", dumbbell:"دمبل", cable:"دستگا
 const EQUIP_TXT_EN = { barbell:"Barbell", dumbbell:"Dumbbell", cable:"Cable machine", pullup:"Pull-up bar", band:"Resistance bands", kettlebell:"Kettlebell", trx:"TRX", bench:"Bench/chair", bodyweight:"Bodyweight only" };
 const SMOKE_TXT = { no:"نه", sometimes:"گاهی", daily:"روزانه" };
 const SMOKE_TXT_EN = { no:"No", sometimes:"Occasionally", daily:"Daily" };
+const STRENGTHBG_TXT = { none:"ندارم", lt_1y:"کمتر از ۱ سال", y1_3:"۱ تا ۳ سال", gt_3y:"بیش از ۳ سال" };
+const STRENGTHBG_TXT_EN = { none:"None", lt_1y:"Under 1 year", y1_3:"1–3 years", gt_3y:"3+ years" };
+const EXPLOSIVEBG_TXT = { none:"ندارم", some:"کمی (تفریحی)", regular:"منظم" };
+const EXPLOSIVEBG_TXT_EN = { none:"None", some:"Some (casual)", regular:"Regular" };
+const PADELMUSCLE_TXT = { legs:"پا و سرین", core:"کر چرخشی", shoulder:"شانه و کتف", forearm:"ساعد و مچ" };
+const PADELMUSCLE_TXT_EN = { legs:"Legs & glutes", core:"Rotational core", shoulder:"Shoulders & shoulder blades", forearm:"Forearms & wrists" };
 const fatzoneLabel = k => (EN() ? FATZONE_TXT_EN : FATZONE_TXT)[k] || k;
 const weakMuscleLabel = k => (EN() ? WEAKMUSCLE_TXT_EN : WEAKMUSCLE_TXT)[k] || k;
 const equipLabel = k => (EN() ? EQUIP_TXT_EN : EQUIP_TXT)[k] || k;
 const smokeLabel = k => (EN() ? SMOKE_TXT_EN : SMOKE_TXT)[k] || k;
+const strengthBgLabel = k => (EN() ? STRENGTHBG_TXT_EN : STRENGTHBG_TXT)[k] || k;
+const explosiveBgLabel = k => (EN() ? EXPLOSIVEBG_TXT_EN : EXPLOSIVEBG_TXT)[k] || k;
+const padelMuscleLabel = k => (EN() ? PADELMUSCLE_TXT_EN : PADELMUSCLE_TXT)[k] || k;
 const dietLabel = k => ({none:tx("نه","No"),vegetarian:tx("گیاه‌خوار","Vegetarian"),vegan:tx("وگن","Vegan"),keto:tx("کتوژنیک","Ketogenic"),fasting:tx("فستینگ","Fasting")}[k] || k);
 const sunLabel = k => ({low:tx("کمتر از ۱۵ دقیقه","Under 15 min"),mid:tx("۱۵ تا ۳۰ دقیقه","15–30 min"),high:tx("بیشتر از ۳۰ دقیقه","Over 30 min")}[k] || k);
 
@@ -1558,8 +1606,10 @@ function calculateProfile(){
     injuryZone: $("#injuryZone").value, injuryNote: $("#injuryNote").value.trim(),
     injurySurgery: radioVal("injurySurgery"),
     condition: $("#fCondition").value.trim(),
-    // vip
-    side: radioVal("vipSide") === "left" ? tx("سمت چپ (تهاجمی)","Left side (attacking)") : (radioVal("vipSide") === "right" ? tx("سمت راست (کنترلی)","Right side (control)") : null),
+    // vip (fitness-focused: strength/explosive background + target muscles — no tactics)
+    strengthBg: radioVal("strengthBg"),
+    explosiveBg: radioVal("explosiveBg"),
+    padelMuscles: $$('input[name="padelMuscles"]:checked').map(c => c.value),
     sessions: radioVal("vipSessions"),
     painMap: readPainMap("vipPainMap"),
     // padel basic (aionly)
@@ -1701,7 +1751,6 @@ function renderResults(d){
   $("#traineeView").innerHTML = head +
     '<div class="card"><h2>' + esc(d.name) + '</h2>' +
     '<p class="step-sub">' + tx("هدف: ","Goal: ") + '<b>' + esc(d.goal) + '</b> · ' + tx("سطح: ","Level: ") + '<b>' + esc(d.level) + '</b>' +
-    (d.side ? ' · ' + tx("پست: ","Position: ") + '<b>' + esc(d.side) + '</b>' : "") +
     (d.sessions ? ' · <b>' + faNum(d.sessions) + tx(" جلسه پدل در هفته"," padel sessions per week") + '</b>' + tx(" (هر جلسه ۶۰ دقیقه ثابت)"," (each session fixed at 60 min)") : "") +
     (d.pbPlay === "yes" ? ' · ' + tx("پدل: ","Padel: ") + '<b>' + faNum(d.pbSessions) + tx(" جلسه در هفته"," sessions per week") + '</b>' : "") + "</p>" +
     statsHtml(d, showPadel) + "</div>" +
@@ -1733,6 +1782,13 @@ function renderResults(d){
     if(d.trainDays !== null && d.trainDays !== undefined) tParts.push(tx("روز تمرین فعلی","Current training days") + ": " + faNum(d.trainDays) + " " + tx("روز در هفته","days per week"));
     if(d.smoke) tParts.push(tx("دخانیات","Smoking") + ": " + smokeLabel(d.smoke));
     if(d.weakMuscles.length) tParts.push(tx("ضعیف‌ترین عضله","Weakest muscle") + ": " + d.weakMuscles.map(weakMuscleLabel).join(tx("، ",", ")));
+    // Padel fitness profile (vip/padel tracks only — null elsewhere, guarded out)
+    if(d.strengthBg) tParts.push(tx("سابقه تمرین قدرتی","Strength-training background") + ": " + strengthBgLabel(d.strengthBg));
+    if(d.explosiveBg){
+      tParts.push(tx("تجربه تمرین انفجاری","Explosive training experience") + ": " + explosiveBgLabel(d.explosiveBg));
+      if(d.explosiveBg === "none") tParts.push(tx("تازه‌کار در تمرین انفجاری — شروع تدریجی با شدت کم","New to explosive training — start gradually at low intensity"));
+    }
+    if(d.padelMuscles && d.padelMuscles.length) tParts.push(tx("عضله‌های هدف پدل","Padel target muscles") + ": " + d.padelMuscles.map(padelMuscleLabel).join(tx("، ",", ")));
     const prParts = [];
     if(d.prBench) prParts.push(tx("پرس سینه","Bench press") + " " + faNum(d.prBench));
     if(d.prSquat) prParts.push(tx("اسکوات","Squat") + " " + faNum(d.prSquat));
