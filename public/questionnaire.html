@@ -457,7 +457,7 @@
                 <label class="choice" style="justify-content:center"><input type="radio" name="trainDays" value="7" /><span class="box">۷</span></label>
               </div>
             </div>
-            <div class="field" style="margin-top:16px">
+            <div class="field" id="prField" style="margin-top:16px">
               <label>رکوردهای تقریبی‌ت <span class="hint">(اختیاری — کیلوگرم)</span></label>
               <div class="grid">
                 <div class="field">
@@ -474,7 +474,7 @@
                 </div>
               </div>
             </div>
-            <div class="field" style="margin-top:16px">
+            <div class="field" id="weakMuscleField" style="margin-top:16px">
               <label>ضعیف‌ترین عضله‌ت کدومه؟ <span class="hint">(اختیاری — چند گزینه می‌توانی بزنی)</span></label>
               <div class="choices cols2">
                 <label class="choice"><input type="checkbox" name="weakMuscle" value="chest" /><span class="box">سینه</span></label>
@@ -1235,13 +1235,40 @@ function readPainMap(id){
 
 /* Wizard navigation */
 const PATHS = {
-  gym:   { steps:["path","body","measure","goal","health","recovery"], names:["مسیر","مشخصات","اندازه‌ها","هدف","سلامت","ریکاوری"], namesEn:["Track","Body","Measurements","Goal","Health","Recovery"] },
+  gym:   { steps:["path","body","measure","goal","health","recovery"], names:["مسیر","مشخصات","اندازه‌ها","هدف بدنسازی","سلامت و سابقه","برنامه هفتگی"], namesEn:["Track","Body","Measurements","Gym goal","Health & history","Weekly plan"] },
   vip:   { steps:["path","body","measure","goal","health","vip","recovery"], names:["مسیر","مشخصات","اندازه‌ها","هدف","سلامت","تخصصی پدل","ریکاوری"], namesEn:["Track","Body","Measurements","Goal","Health","Padel analysis","Recovery"] },
   padel: { steps:["path","body","health","vip"], names:["مسیر","مشخصات","سلامت","آنالیز پدل"], namesEn:["Track","Body","Health","Padel analysis"] },
-  aionly:{ steps:["path","body","measure","goal","health","redflag","recovery"], names:["مسیر","مشخصات","اندازه‌ها","هدف","سلامت","ایمنی","ریکاوری"], namesEn:["Track","Body","Measurements","Goal","Health","Safety","Recovery"] }
+  aionly:{ steps:["path","body","measure","goal","health","redflag","recovery"], names:["مسیر","مشخصات","اندازه‌ها","هدف برنامه","سلامت و محدودیت","ایمنی","زمان‌بندی"], namesEn:["Track","Body","Measurements","Program goal","Health & limits","Safety","Schedule"] }
 };
 let curPath = "gym", curIdx = 0;
 function pathDef(){ return PATHS[curPath]; }
+
+/* Track-flavored step intros — each track feels like its own questionnaire,
+ * not a reskin. Applied in showStep(); set directly per language (same
+ * pattern as the trainPlace label swap), so no EN_TEXT entries are needed.
+ * Format: [fa, en]. */
+const TRACK_COPY = {
+  gym: {
+    goal:     { legend:["هدف بدنسازی شما","Your gym goal"], sub:["برنامه باشگاهی و راهنمای تغذیه بر مبنای این هدف تنظیم می‌شود:","Your gym program and nutrition guide are built around this goal:"] },
+    health:   { legend:["سابقه تمرینی و سلامت","Training history & health"], sub:["برای طراحی برنامه باشگاهی امن و مؤثر — دقیق جواب بده:","To design a safe, effective gym program — answer precisely:"] },
+    recovery: { legend:["برنامه هفتگی باشگاه","Weekly gym plan"], sub:["برای تنظیم حجم تمرین هفتگی و شدت برنامه:","To set your weekly training volume and intensity:"] }
+  },
+  vip: {
+    goal:     { legend:["هدف دوره VIP","VIP block goal"], sub:["برنامه باشگاهی + پدل بر مبنای این هدف تنظیم می‌شود:","Your gym + padel program is built around this goal:"] },
+    recovery: { legend:["برنامه هفتگی و تجهیزات","Weekly plan & equipment"], sub:["برای تنظیم حجم تمرین هفتگی و شدت برنامه:","To set your weekly training volume and intensity:"] }
+  },
+  padel: {
+    body:   { legend:["مشخصات بدنی","Body profile"], sub:["برای تنظیم شدت تمرین‌های تقویتی پدل:","To calibrate your padel strength work:"] },
+    health: { legend:["سلامت و سابقه آسیب","Health & injury history"], sub:["برای جلوگیری از آسیب، حرکات پرخطر با جایگزین‌های امن تعویض می‌شوند:","Risky moves are auto-swapped for safe alternatives:"] }
+  },
+  aionly: {
+    body:     { legend:["مشخصات بدنی شما","Your body profile"], sub:["هوش مصنوعی برنامه را بر اساس بدن شما می‌سازد — دقیق وارد کن:","The AI builds your program from your body data — be precise:"] },
+    measure:  { legend:["اندازه‌ها (اختیاری)","Measurements (optional)"], sub:["هر چه را داری وارد کن تا برآورد دقیق‌تر شود:","Enter what you have for a more precise estimate:"] },
+    goal:     { legend:["هدف برنامه هوشمند","Smart program goal"], sub:["برنامه دقیقاً برای این هدف ساخته می‌شود — بدون مربی، بدون بازبینی:","Your program is built exactly for this goal — no coach, no review:"] },
+    health:   { legend:["سابقه تمرینی و محدودیت‌ها","Training history & limitations"], sub:["هر آسیب یا محدودیت را دقیق بگو — هیچ مربی‌ای بعداً چک نمی‌کند:","Report every injury or limitation precisely — no coach will double-check later:"] },
+    recovery: { legend:["زمان‌بندی و تجهیزات شما","Your schedule & equipment"], sub:["برنامه دقیقاً در همین چارچوب ساخته می‌شود:","Your program is built exactly within these constraints:"] }
+  }
+};
 
 function renderDots(){
   const d = $("#dots"); d.innerHTML = "";
@@ -1266,16 +1293,20 @@ function showStep(idx){
   $("#stepPct").textContent = faNum(pct) + tx("٪","%");
   $("#barFill").style.width = pct + "%";
   // aionly has no padel context: the padel-specific goal choice makes no sense there.
+  // The gym track is unambiguously gym programming — padel readiness belongs
+  // to the vip track. Hide the choice on both, unchecking it if it was set.
   const gp = document.getElementById("goalPadelChoice");
   if(gp){
-    const hide = curPath === "aionly";
+    const hide = curPath === "aionly" || curPath === "gym";
     gp.style.display = hide ? "none" : "";
     if(hide){ const c = gp.querySelector('input:checked'); if(c) c.checked = false; }
   }
-  // Supplement/micronutrient screening: gym/vip/aionly only — padel-only track skips it.
+  // Supplement/micronutrient screening: gym/vip only. The padel-only track
+  // skips it (light flow), and the aionly track skips it too — its flags feed
+  // the coach's supplement-review pipeline, which doesn't exist without a coach.
   const sb = document.getElementById("suppBlock");
   if(sb){
-    const hideSupp = curPath === "padel";
+    const hideSupp = curPath === "padel" || curPath === "aionly";
     sb.style.display = hideSupp ? "none" : "";
     if(hideSupp){
       sb.querySelectorAll('input[type="radio"]:checked').forEach(c => { c.checked = false; });
@@ -1283,6 +1314,35 @@ function showStep(idx){
       ["suppBox","medsBox","diagBox"].forEach(id => { const b = document.getElementById(id); if(b) b.classList.remove("show"); });
     }
   }
+  // Padel-only track: light fitness flow — hide gym-programming inputs
+  // (bench/squat/deadlift PRs, bodybuilding weak-muscle picks) that serve the
+  // gym/vip program builder, not padel. Both are optional: no validation change.
+  ["prField","weakMuscleField"].forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    const hideG = curPath === "padel";
+    el.style.display = hideG ? "none" : "";
+    if(hideG) el.querySelectorAll("input").forEach(c => { if(c.type === "checkbox" || c.type === "radio") c.checked = false; else c.value = ""; });
+  });
+  // Track-flavored intros (see TRACK_COPY): swap the active step's legend +
+  // first sub-line per track; set directly per language like the trainPlace
+  // label swap, and re-applied on every showStep (incl. language toggle).
+  (function(){
+    const sec = document.querySelector(".step.active");
+    if(!sec) return;
+    const c = (TRACK_COPY[curPath] || {})[key];
+    const leg = sec.querySelector("legend"), sub = sec.querySelector(".step-sub");
+    if(leg){
+      if(!leg.dataset.tcOrig) leg.dataset.tcOrig = leg.innerHTML;
+      if(c && c.legend){ leg.textContent = EN() ? c.legend[1] : c.legend[0]; leg.dataset.tcOn = "1"; }
+      else if(leg.dataset.tcOn){ leg.innerHTML = leg.dataset.tcOrig; delete leg.dataset.tcOn; }
+    }
+    if(sub){
+      if(!sub.dataset.tcOrig) sub.dataset.tcOrig = sub.textContent;
+      if(c && c.sub){ sub.textContent = EN() ? c.sub[1] : c.sub[0]; sub.dataset.tcOn = "1"; }
+      else if(sub.dataset.tcOn){ sub.textContent = sub.dataset.tcOrig; delete sub.dataset.tcOn; }
+    }
+  })();
   // Last-step nav: the padel track ends on the "vip" analysis step, whose
   // button is data-next. Relabel it as the finish action there (it submits
   // the questionnaire); other tracks keep "next" since recovery follows.
@@ -1324,8 +1384,11 @@ function validateKey(key){
     // Deeper training profile (v1.5): both starred — must not be skippable.
     if(!radioVal("trainDays")) miss("روز تمرین فعلی", "current training days");
     if(!radioVal("smoke")) miss("دخانیات", "smoking");
-    // Supplement & micronutrient screening (gym/vip/aionly only — padel track hides the block).
-    if(curPath !== "padel"){
+    // Supplement & micronutrient screening (gym/vip only). The padel-only track
+    // hides the block (light flow); the aionly track hides it too — its flags
+    // feed the coach's supplement-review pipeline, which doesn't exist
+    // without a coach.
+    if(curPath !== "padel" && curPath !== "aionly"){
       if(!radioVal("suppUse")) miss("مصرف مکمل", "supplement use");
       if(radioVal("suppUse") === "yes" && !$("#fSuppList").value.trim()) miss("نوع مکمل", "supplement types");
       if(!radioVal("medsUse")) miss("مصرف دارو", "medication use");
@@ -1660,7 +1723,7 @@ function exRow(e, conservative){
     '<td class="sr"><span class="sr-sets">' + sets + "</span>" + sub + "</td></tr>";
 }
 
-function flagsHtml(d){
+function flagsHtml(d, isAI){
   let h = "";
   if(d.injury === "yes"){
     const surg = d.injurySurgery === "yes";
@@ -1675,7 +1738,9 @@ function flagsHtml(d){
         (p.surgNote ? " — " + esc(p.surgNote) : "") + tx(" · درد: "," · Pain: ") + esc(p.time) + "</span></div>";
     }
   });
-  if(d.age < 18) h += '<div class="flag amber"><span class="ic">⚠</span><span>' + tx("زیر ۱۸ سال — برنامه محافظه‌کارانه و نیاز به نظارت مربی/والدین.","Under 18 — conservative program, coach/parent supervision required.") + "</span></div>";
+  if(d.age < 18) h += '<div class="flag amber"><span class="ic">⚠</span><span>' + (isAI
+    ? tx("زیر ۱۸ سال — برنامه محافظه‌کارانه و نیاز به نظارت والدین/بزرگسال.","Under 18 — conservative program, parent/adult supervision required.")
+    : tx("زیر ۱۸ سال — برنامه محافظه‌کارانه و نیاز به نظارت مربی/والدین.","Under 18 — conservative program, coach/parent supervision required.")) + "</span></div>";
   if(d.sleep < 6) h += '<div class="flag amber"><span class="ic">⚠</span><span>' + tx("خواب کمتر از ۶ ساعت — حجم تمرین کاهش یافت.","Sleep under 6 hours — training volume reduced.") + "</span></div>";
   return h;
 }
@@ -1754,11 +1819,13 @@ function renderResults(d){
     (d.sessions ? ' · <b>' + faNum(d.sessions) + tx(" جلسه پدل در هفته"," padel sessions per week") + '</b>' + tx(" (هر جلسه ۶۰ دقیقه ثابت)"," (each session fixed at 60 min)") : "") +
     (d.pbPlay === "yes" ? ' · ' + tx("پدل: ","Padel: ") + '<b>' + faNum(d.pbSessions) + tx(" جلسه در هفته"," sessions per week") + '</b>' : "") + "</p>" +
     statsHtml(d, showPadel) + "</div>" +
-    flagsHtml(d) + conservativeNote +
+    flagsHtml(d, isAI) + conservativeNote +
     '<div class="card"><h3>' + tx("برنامه تمرینی ","Training program ") + (isPadel ? tx("(تکمیلی پدل + موبیلیتی)","(padel supplementary + mobility)") : tx("(باشگاه)","(gym)")) + '</h3>' +
     '<div class="session"><div class="session-head"><b>' + tx("جلسات هفتگی","Weekly sessions") + '</b><span>' + faNum(d.gymDays) + tx(" روز × "," days × ") + faNum(d.minutes) + tx(" دقیقه"," min") + '</span></div>' +
     '<table class="ex">' + progRows + "</table>" + adaptNote + "</div>" +
-    '<p class="step-sub">' + tx("کالری‌ها تخمینی‌اند (Mifflin-St Jeor)؛ مربی اعداد نهایی را تنظیم می‌کند.","Calories are estimates (Mifflin-St Jeor); the coach sets the final numbers.") + '</p></div>' +
+    '<p class="step-sub">' + (isAI
+      ? tx("کالری‌ها تخمینی‌اند (Mifflin-St Jeor).","Calories are estimates (Mifflin-St Jeor).")
+      : tx("کالری‌ها تخمینی‌اند (Mifflin-St Jeor)؛ مربی اعداد نهایی را تنظیم می‌کند.","Calories are estimates (Mifflin-St Jeor); the coach sets the final numbers.")) + '</p></div>' +
     (isAI
       ? '<div class="flag red"><span class="ic">⚠</span><span><b>' + tx("سلب مسئولیت:","Disclaimer:") + '</b> ' + tx("این برنامه توسط هوش مصنوعی و بدون بررسی مربی تولید شده است. در صورت درد، سرگیجه یا تنگی نفس، تمرین را فوراً متوقف و به پزشک مراجعه کنید.","This program was generated by AI without coach review. If you feel pain, dizziness or shortness of breath, stop immediately and see a doctor.") + "</span></div>"
       : "");
@@ -1826,7 +1893,7 @@ function renderResults(d){
     $("#coachView").innerHTML =
       '<div class="card" style="border-color:rgba(0,240,255,.35)">' +
       '<h2>' + tx("گزارش مربی","Coach report") + '</h2><p class="step-sub">' + tx("این برنامه جهت بررسی و تأیید نهایی شما آماده است.","This program is ready for your final review and approval.") + '</p>' +
-      flagsHtml(d) +
+      flagsHtml(d, false) +
       "<h3>" + tx("نقشه درد","Pain map") + "</h3>" +
       (d.painMap.length
         ? '<ul class="tips">' + d.painMap.map(p => "<li><b>" + esc(p.zone) + "</b> · " + esc(p.time) + " · " + tx("جراحی: ","Surgery: ") + "<b>" + (p.surgery === "yes" ? tx("بله","Yes") + (p.surgNote ? " (" + esc(p.surgNote) + ")" : "") : tx("خیر","No")) + "</b></li>").join("") + "</ul>"
