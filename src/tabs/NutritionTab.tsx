@@ -82,7 +82,7 @@ function DoctorHandoffCard({ athleteId, athleteName }: { athleteId: string | nul
 
   useEffect(() => {
     let alive = true;
-    (async () => {
+    const load = async () => {
       if (!athleteId) return;
       try {
         const row = isSupabaseConfigured
@@ -93,13 +93,31 @@ function DoctorHandoffCard({ athleteId, athleteName }: { athleteId: string | nul
           : readLocalSuppReviews()[athleteId] ?? null;
         // Belt-and-suspenders: the handoff renders for approved reviews only
         // (RLS already restricts athlete reads to approved).
-        if (alive && row && row.status === 'approved') setReview(row);
+        // A successful read of a non-approved row CLEARS the card: without
+        // this, a coach reopen (approve → pending) would leave the revoked
+        // handoff visible until restart. Read failures leave the card
+        // untouched (no flicker on a transient offline blip).
+        if (alive) setReview(row && row.status === 'approved' ? row : null);
       } catch {
         /* leave hidden */
       }
-    })();
+    };
+    void load();
+    // All tabs stay mounted (App.tsx: display:none), so this effect runs
+    // exactly once per app start — a coach approval arriving while the
+    // trainee's app is open would otherwise never appear until restart.
+    // Re-check whenever the app returns to the foreground: that is the
+    // realistic approval-arrival moment (coach approves, tells the
+    // trainee, the trainee opens/foregrounds the app).
+    const onForeground = () => {
+      if (document.visibilityState === 'visible') void load();
+    };
+    document.addEventListener('visibilitychange', onForeground);
+    window.addEventListener('focus', onForeground);
     return () => {
       alive = false;
+      document.removeEventListener('visibilitychange', onForeground);
+      window.removeEventListener('focus', onForeground);
     };
   }, [athleteId]);
 
