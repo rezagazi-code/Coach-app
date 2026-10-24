@@ -273,33 +273,66 @@ export default function NutritionTab() {
 
   useEffect(() => {
     let alive = true;
-    (async () => {
-      setLoading(true);
+    const loadTargets = async (silent: boolean) => {
+      if (!silent) setLoading(true);
       if (!isSupabaseConfigured) {
         if (alive) {
           setItems(demoItems());
           setRx(demoRx());
-          setLoading(false);
+          if (!silent) setLoading(false);
         }
         return;
       }
       try {
         if (!athleteId) {
-          if (alive) setLoading(false);
+          if (alive && !silent) setLoading(false);
           return;
         }
         const row = await latestNutritionTargetsFor(athleteId);
         if (alive) {
           setItems(row?.food_items ?? []);
-          setRx(row?.prescriptions ?? []);
+          const freshRx = row?.prescriptions ?? [];
+          setRx(freshRx);
+          // Prune «taken» ticks for prescriptions the coach removed from
+          // the plate: rxDone is keyed by name, not by the live rx list,
+          // so without this a removed name would still ride the next
+          // «ثبت روز» as taken — a ghost prescription in the coach's log.
+          const freshKeys = new Set(freshRx.map((p) => `${p.name_fa}|${p.name_en}`));
+          setRxDone((prev) => {
+            let changed = false;
+            const next: Record<string, boolean> = {};
+            for (const [k, v] of Object.entries(prev)) {
+              if (freshKeys.has(k)) next[k] = v;
+              else changed = true;
+            }
+            if (changed) persistRxLocal(next);
+            return changed ? next : prev;
+          });
         }
       } catch (err) {
         console.error('[nutrition] targets load failed', err);
       }
-      if (alive) setLoading(false);
-    })();
+      if (alive && !silent) setLoading(false);
+    };
+    void loadTargets(false);
+    // Same trap class as the 0.2.29–0.2.32 foreground fixes, one level
+    // deeper: all tabs stay mounted (display:none), so this effect ran
+    // once per app start — a coach plate edit arriving while the
+    // trainee's app was backgrounded left the trainee logging (and
+    // saving, with its over-target flags computed) against STALE targets.
+    // Re-check silently on foreground; logged amounts are keyed by item
+    // key, so amounts for surviving items are untouched and removed
+    // items simply stop rendering (and stop being saved).
+    const onForeground = () => {
+      if (!isSupabaseConfigured) return;
+      if (document.visibilityState === 'visible') void loadTargets(true);
+    };
+    document.addEventListener('visibilitychange', onForeground);
+    window.addEventListener('focus', onForeground);
     return () => {
       alive = false;
+      document.removeEventListener('visibilitychange', onForeground);
+      window.removeEventListener('focus', onForeground);
     };
   }, [athleteId]);
 
