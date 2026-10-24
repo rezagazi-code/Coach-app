@@ -330,7 +330,7 @@
             </div>
             <div class="err" id="err1">لطفاً مقادیر معتبر قد، وزن، سن و جنسیت را وارد نمایید.</div>
           </fieldset>
-          <div class="nav"><button type="button" class="btn btn-volt" data-next>قدم بعد ←</button></div>
+          <div class="nav"><button type="button" class="btn btn-ghost" data-prev>→ برگشت</button><button type="button" class="btn btn-volt" data-next>قدم بعد ←</button></div>
         </div>
       </section>
 
@@ -1069,6 +1069,17 @@ function translateStatic(){
   const nodes = [];
   while(walker.nextNode()) nodes.push(walker.currentNode);
   nodes.forEach(n => {
+    // Track-copy-managed step intros (TRACK_COPY in showStep): the first-seen
+    // cache below would otherwise canonize a track's flavored copy — or a
+    // translated restore — as the "original", stranding the legend/sub in the
+    // wrong language after a toggle. Always derive these from the
+    // load-captured FA standard instead.
+    const mng = n.parentElement ? n.parentElement.closest("[data-tc-managed]") : null;
+    if(mng && mng.dataset.stdFa !== undefined){
+      const fa = mng.dataset.stdFa;
+      n.nodeValue = EN() ? (EN_TEXT[fa.trim()] || fa) : fa;
+      return;
+    }
     if(!_origText.has(n)) _origText.set(n, n.nodeValue);
     const orig = _origText.get(n), key = orig.trim();
     if(!key) return;
@@ -1243,6 +1254,15 @@ const PATHS = {
 let curPath = "gym", curIdx = 0;
 function pathDef(){ return PATHS[curPath]; }
 
+/* Standard (non-track-flavored) step intros, captured once at load in the
+ * authored language (FA) — the restore path in showStep() needs
+ * language-stable originals. (The old code cached the first-seen innerHTML,
+ * which could be the EN translation or even a previous track's copy.) */
+document.querySelectorAll(".step").forEach(function(sec){
+  const l = sec.querySelector("legend"), s = sec.querySelector(".step-sub");
+  if(l && l.dataset.stdFa === undefined) l.dataset.stdFa = l.textContent;
+  if(s && s.dataset.stdFa === undefined) s.dataset.stdFa = s.textContent;
+});
 /* Track-flavored step intros — each track feels like its own questionnaire,
  * not a reskin. Applied in showStep(); set directly per language (same
  * pattern as the trainPlace label swap), so no EN_TEXT entries are needed.
@@ -1327,20 +1347,24 @@ function showStep(idx){
   // Track-flavored intros (see TRACK_COPY): swap the active step's legend +
   // first sub-line per track; set directly per language like the trainPlace
   // label swap, and re-applied on every showStep (incl. language toggle).
+  // Restore uses the load-captured FA original (re-translated when in EN),
+  // so a legend never gets stuck in the wrong language after a toggle.
   (function(){
     const sec = document.querySelector(".step.active");
     if(!sec) return;
     const c = (TRACK_COPY[curPath] || {})[key];
+    const stdText = (el) => {
+      const fa = el.dataset.stdFa !== undefined ? el.dataset.stdFa : el.textContent;
+      return EN() ? (EN_TEXT[fa.trim()] || fa) : fa;
+    };
     const leg = sec.querySelector("legend"), sub = sec.querySelector(".step-sub");
     if(leg){
-      if(!leg.dataset.tcOrig) leg.dataset.tcOrig = leg.innerHTML;
-      if(c && c.legend){ leg.textContent = EN() ? c.legend[1] : c.legend[0]; leg.dataset.tcOn = "1"; }
-      else if(leg.dataset.tcOn){ leg.innerHTML = leg.dataset.tcOrig; delete leg.dataset.tcOn; }
+      if(c && c.legend){ leg.textContent = EN() ? c.legend[1] : c.legend[0]; leg.dataset.tcOn = "1"; leg.dataset.tcManaged = "1"; }
+      else if(leg.dataset.tcOn){ leg.textContent = stdText(leg); delete leg.dataset.tcOn; }
     }
     if(sub){
-      if(!sub.dataset.tcOrig) sub.dataset.tcOrig = sub.textContent;
-      if(c && c.sub){ sub.textContent = EN() ? c.sub[1] : c.sub[0]; sub.dataset.tcOn = "1"; }
-      else if(sub.dataset.tcOn){ sub.textContent = sub.dataset.tcOrig; delete sub.dataset.tcOn; }
+      if(c && c.sub){ sub.textContent = EN() ? c.sub[1] : c.sub[0]; sub.dataset.tcOn = "1"; sub.dataset.tcManaged = "1"; }
+      else if(sub.dataset.tcOn){ sub.textContent = stdText(sub); delete sub.dataset.tcOn; }
     }
   })();
   // Last-step nav: the padel track ends on the "vip" analysis step, whose
