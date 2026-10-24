@@ -10,7 +10,7 @@
  *   the «گزارش برای پزشک» handoff card on the trainee's nutrition tab.
  * - Demo/offline mode: review state in localStorage (km.suppreview.v1).
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLang } from '../lib/i18n';
 import {
   getAthleteLatestResponse,
@@ -111,9 +111,9 @@ export default function SupplementReviewSection({
 
   const demo = !isSupabaseConfigured;
 
-  const load = async () => {
+  const load = async (silent = false) => {
     if (loading) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       if (demo) {
         const local = readLocalSuppReviews()[athleteId] ?? null;
@@ -142,10 +142,38 @@ export default function SupplementReviewSection({
         if (!noteDirtyRef.current) setNote(rev?.coach_note ?? '');
       }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
       setLoaded(true);
     }
   };
+
+  // Call the LATEST load() from listeners: the foreground effect below
+  // subscribes once per open, but load() is re-created every render — a
+  // listener holding the first closure would read a stale `loading` guard
+  // and block every later re-check.
+  const loadRef = useRef(load);
+  useEffect(() => {
+    loadRef.current = load;
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    // Same trap class as the queue/expand fixes: the section stays mounted
+    // while expanded, so a trainee resubmission arriving while the coach's
+    // app is backgrounded would otherwise leave the coach deciding
+    // (response_id and all) on a superseded draft. Re-check silently on
+    // foreground — the unsaved-note guard in load() keeps typed text, and
+    // the silent flag avoids flashing «please wait» over the open draft.
+    const onForeground = () => {
+      if (document.visibilityState === 'visible') void loadRef.current(true);
+    };
+    document.addEventListener('visibilitychange', onForeground);
+    window.addEventListener('focus', onForeground);
+    return () => {
+      document.removeEventListener('visibilitychange', onForeground);
+      window.removeEventListener('focus', onForeground);
+    };
+  }, [open ]);
 
   const toggle = () => {
     const next = !open;
