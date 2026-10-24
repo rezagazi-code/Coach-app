@@ -339,7 +339,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           void persistPendingSubmission({
             athleteId: myAthlete.id,
             coachId: myAthlete.coach_id,
-          }).catch((err) => console.error('[auth] pending submission flush failed', err));
+          })
+            .then((r) => {
+              // The ProgramStatusCard's mount-time refresh can race ahead
+              // of this flush (offline submit → app reopened online): when
+              // the submission actually synced, announce it so the card
+              // re-reads — mirrors the online/visibilitychange path.
+              if (r === 'synced') window.dispatchEvent(new CustomEvent('km-queue-flushed'));
+            })
+            .catch((err) => console.error('[auth] pending submission flush failed', err));
         }
         if (!myAthlete && !myRole && !myCoach && !isAthleteIdentity(next.user)) {
           // ORPHAN email identity: no role, no coach row, no athlete row.

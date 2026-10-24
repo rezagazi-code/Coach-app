@@ -581,6 +581,23 @@ export default function CoachPanel() {
         // athlete with a pending review would leave a ghost card whose
         // detail opens on cascade-wiped rows (dead-end + error toast).
         setReviews((prev) => prev.filter((r) => r.athleteId !== athleteId));
+        // The local stores are keyed by athlete id too — without cleanup
+        // the deleted athlete's notes/plates linger in localStorage
+        // forever as dead entries. Drop them and rewrite both keys.
+        delete localNotes.current[athleteId];
+        writeLocalNotes(localNotes.current);
+        delete localPlates.current[athleteId];
+        writeLocalPlates(localPlates.current);
+        setDrafts((prev) => {
+          const next = { ...prev };
+          delete next[athleteId];
+          return next;
+        });
+        setPlateDrafts((prev) => {
+          const next = { ...prev };
+          delete next[athleteId];
+          return next;
+        });
         showToast(t('cp.deleteTraineeDone') + ' — ' + t('cp.deleteTraineeAuthNote'));
       } catch (err) {
         console.error('[coach-panel] delete trainee failed', err);

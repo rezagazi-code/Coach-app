@@ -1123,6 +1123,16 @@ document.addEventListener("click", e => {
   e.preventDefault();
   try{ window.parent.postMessage({ type:"km-open-url", url:a.href }, location.origin); }catch(_){}
 });
+/* Standard (non-track-flavored) step intros — captured once at load from the
+ * pristine authored DOM (FA), BEFORE applyLang runs below: capture after the
+ * first translation would bake the EN strings into dataset.stdFa on an
+ * EN-first load, and the track-copy restore path + tcManaged translation
+ * would then show English text even in FA mode. */
+document.querySelectorAll(".step").forEach(function(sec){
+  const l = sec.querySelector("legend"), s = sec.querySelector(".step-sub");
+  if(l && l.dataset.stdFa === undefined) l.dataset.stdFa = l.textContent;
+  if(s && s.dataset.stdFa === undefined) s.dataset.stdFa = s.textContent;
+});
 applyLang(LANG, false);
 </script>
 
@@ -1254,15 +1264,10 @@ const PATHS = {
 let curPath = "gym", curIdx = 0;
 function pathDef(){ return PATHS[curPath]; }
 
-/* Standard (non-track-flavored) step intros, captured once at load in the
- * authored language (FA) — the restore path in showStep() needs
- * language-stable originals. (The old code cached the first-seen innerHTML,
- * which could be the EN translation or even a previous track's copy.) */
-document.querySelectorAll(".step").forEach(function(sec){
-  const l = sec.querySelector("legend"), s = sec.querySelector(".step-sub");
-  if(l && l.dataset.stdFa === undefined) l.dataset.stdFa = l.textContent;
-  if(s && s.dataset.stdFa === undefined) s.dataset.stdFa = s.textContent;
-});
+/* Standard (non-track-flavored) step intros: dataset.stdFa is captured at the
+ * end of the first script block, from the pristine authored DOM BEFORE
+ * applyLang's first translateStatic() — see there. (Capturing here would
+ * bake EN translations into stdFa on EN-first loads.) */
 /* Track-flavored step intros — each track feels like its own questionnaire,
  * not a reskin. Applied in showStep(); set directly per language (same
  * pattern as the trainPlace label swap), so no EN_TEXT entries are needed.

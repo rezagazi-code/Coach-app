@@ -204,7 +204,48 @@ export default function SupplementReviewSection({
     }
   };
 
-  const reopen = () => setReview((prev) => (prev ? { ...prev, status: 'pending' as const } : prev));
+  // «بازگشایی» reinstates review: the trainee's handoff card renders on
+  // 'approved' rows only, so the revocation must PERSIST (server upsert,
+  // local fallback) — an in-memory flip alone would leave the trainee
+  // seeing the «گزارش برای پزشک» after reload while the coach believes
+  // they un-approved it. The persisted 'pending' state brings the draft
+  // back with Approve/Reject, exactly like a fresh decision flow.
+  const reopen = async () => {
+    if (!review || saving) return;
+    setSaving(true);
+    try {
+      const pending: SupplementReview = {
+        ...review,
+        status: 'pending' as const,
+        decided_at: new Date().toISOString(),
+      };
+      const writeLocalPending = () => {
+        const all = readLocalSuppReviews();
+        all[athleteId] = pending;
+        writeLocalSuppReviews(all);
+        setReview(pending);
+      };
+      if (demo) {
+        writeLocalPending();
+      } else {
+        try {
+          const row = await saveSupplementReview({
+            athlete_id: athleteId,
+            coach_id: coachId,
+            response_id: review.response_id,
+            status: 'pending',
+            draft_snapshot: review.draft_snapshot,
+            coach_note: review.coach_note,
+          });
+          setReview(row);
+        } catch {
+          writeLocalPending();
+        }
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="supp-section">
@@ -226,8 +267,13 @@ export default function SupplementReviewSection({
                 {review.status === 'approved' ? t('s.approvedState') : t('s.rejectedState')}
               </p>
               {review.coach_note && <p className="supp-note-line">«{review.coach_note}»</p>}
-              <button type="button" className="btn-ghost cp-plate-add" onClick={reopen}>
-                {t('s.reopen')}
+              <button
+                type="button"
+                className="btn-ghost cp-plate-add"
+                disabled={saving}
+                onClick={() => void reopen()}
+              >
+                {saving ? t('s.saving') : t('s.reopen')}
               </button>
             </div>
           )}
