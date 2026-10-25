@@ -2,6 +2,11 @@
  * Tab (d) — daily checklist. HABITS ONLY — never drugs, never supplements,
  * never prescriptions. Coach-assigned habits with times; tap to check off,
  * animated progress ring, «+۲ XP» toast per completion.
+ *
+ * Day state persists in localStorage (km.checklist.v1, per-day): without
+ * it the ring reset on every app restart, and re-tapping a habit already
+ * completed today showed the «+۲ XP» toast while the ledger silently
+ * dropped the award as a duplicate client_uuid — a toast that lies.
  */
 import { useState } from 'react';
 import { useLang } from '../lib/i18n';
@@ -16,17 +21,49 @@ interface Habit {
 // XP awarded per habit completion — must match the «+۲ XP» toast text (c.xp).
 const HABIT_XP = 2;
 
+const HABIT_KEYS: Habit['key'][] = ['water', 'sleep', 'steps', 'mobility'];
+
+/** Today's persisted done-set, or null when no cache exists for today. */
+function readStoredDone(): Set<string> | null {
+  try {
+    const raw = localStorage.getItem(CHECKLIST_LOCAL);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { date?: string; done?: string[] };
+    if (parsed?.date === localDateStr() && Array.isArray(parsed.done)) return new Set(parsed.done);
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function persistDone(done: string[]): void {
+  try {
+    localStorage.setItem(CHECKLIST_LOCAL, JSON.stringify({ date: localDateStr(), done }));
+  } catch {
+    /* ignore */
+  }
+}
+
+// Per-day cache key (same discipline as NutritionTab's per-day caches).
+const CHECKLIST_LOCAL = 'km.checklist.v1';
+
+function initialHabits(): Habit[] {
+  const stored = readStoredDone();
+  if (stored) return HABIT_KEYS.map((key) => ({ key, done: stored.has(key) }));
+  return [
+    { key: 'water', done: false },
+    { key: 'sleep', done: false },
+    { key: 'steps', done: false },
+    { key: 'mobility', done: true }, // morning mobility already done
+  ];
+}
+
 const R = 54;
 const CIRC = 2 * Math.PI * R;
 
 export default function ChecklistTab() {
   const { t, num } = useLang();
-  const [habits, setHabits] = useState<Habit[]>([
-    { key: 'water', done: false },
-    { key: 'sleep', done: false },
-    { key: 'steps', done: false },
-    { key: 'mobility', done: true }, // morning mobility already done
-  ]);
+  const [habits, setHabits] = useState<Habit[]>(initialHabits);
   const [toast, setToast] = useState<string | null>(null);
 
   const doneCount = habits.filter((h) => h.done).length;
@@ -36,7 +73,14 @@ export default function ChecklistTab() {
     const current = habits.find((h) => h.key === key);
     if (!current) return;
     const turningOn = !current.done;
-    setHabits((prev) => prev.map((h) => (h.key === key ? { ...h, done: !h.done } : h)));
+    setHabits((prev) => {
+      const next = prev.map((h) => (h.key === key ? { ...h, done: !h.done } : h));
+      // Persist the full done-set (idempotent write — safe under
+      // double-invoked updaters): a restart must restore exactly this,
+      // so a completed habit never shows unchecked again.
+      persistDone(next.filter((h) => h.done).map((h) => h.key));
+      return next;
+    });
     if (turningOn) {
       // Record the promised XP in the ledger (the toast used to claim it
       // without writing anything). Idempotent per habit/day: toggling off
