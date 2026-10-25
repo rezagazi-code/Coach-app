@@ -765,6 +765,35 @@ export async function getAthleteLatestProgram(
 }
 
 /**
+ * The athlete's newest APPROVED/ACTIVE program plus the coach's display
+ * name (same shape as getAthleteLatestProgram). Used when the newest
+ * program overall is dead (draft/archived — e.g. a resubmission the coach
+ * rejected): the older approved program is still the trainee's live
+ * program, and hiding it behind a «no program» card would strand the
+ * trainee with no session until the next approval.
+ */
+export async function getAthleteActiveProgram(
+  athleteId: string
+): Promise<{ program: Program; coachName: string | null } | null> {
+  const program = await activeProgramFor(athleteId);
+  if (!program) return null;
+  let coachName: string | null = null;
+  if (program.coach_id) {
+    try {
+      const { data } = await requireClient()
+        .from('coaches')
+        .select('display_name')
+        .eq('id', program.coach_id)
+        .maybeSingle();
+      coachName = (data as { display_name?: string } | null)?.display_name ?? null;
+    } catch {
+      /* coach name is a nicety, not a requirement */
+    }
+  }
+  return { program, coachName };
+}
+
+/**
  * The athlete's newest questionnaire response — carries
  * answers._program.exercises (see buildProgramExercises in
  * public/questionnaire.html), which is what the workout tab renders the

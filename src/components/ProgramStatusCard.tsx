@@ -14,9 +14,10 @@
 import { useEffect, useState } from 'react';
 import { useLang } from '../lib/i18n';
 import {
+  getAthleteActiveProgram,
   getAthleteLatestProgram,
-  getAthleteLatestResponse,
   getCurrentAthleteId,
+  questionnaireResponseForReview,
   readPendingSubmission,
   SupabaseNotConfiguredError,
   type Program,
@@ -77,7 +78,12 @@ export function useAthleteProgramStatus(): ProgramState {
           return;
         }
         if (program.status === 'approved' || program.status === 'active') {
-          const resp = await getAthleteLatestResponse(athleteId);
+          // Exercises belong to THIS program's submission, not simply the
+          // newest response: a later red-flag-blocked resubmission writes a
+          // response but no program, and its answers carry no usable
+          // _program — reading «latest» here would drop the approved
+          // session's exercise list for ready-noexercises.
+          const resp = await questionnaireResponseForReview(athleteId, program.created_at);
           const days = validDays(
             (resp?.answers as Record<string, unknown> | undefined)?._program &&
               ((resp?.answers as Record<string, unknown>)._program as Record<string, unknown>).exercises
@@ -91,7 +97,32 @@ export function useAthleteProgramStatus(): ProgramState {
           }
           return;
         }
-        // draft / archived — no live program; a fresh questionnaire is the way back.
+        // draft / archived — the newest program is dead, but an older
+        // APPROVED program may still be live (e.g. a resubmission the
+        // coach rejected). Falling straight to «no program» hid that
+        // session and left the trainee with only the demo workout until
+        // the next approval. Only when no approved program exists is a
+        // fresh questionnaire the way back.
+        try {
+          const active = await getAthleteActiveProgram(athleteId);
+          if (active) {
+            const resp = await questionnaireResponseForReview(athleteId, active.program.created_at);
+            const days = validDays(
+              (resp?.answers as Record<string, unknown> | undefined)?._program &&
+                ((resp?.answers as Record<string, unknown>)._program as Record<string, unknown>).exercises
+            );
+            if (alive) {
+              setState(
+                days
+                  ? { kind: 'ready', program: active.program, coachName: active.coachName, days }
+                  : { kind: 'ready-noexercises', program: active.program, coachName: active.coachName }
+              );
+            }
+            return;
+          }
+        } catch {
+          /* fall through to the local signal below */
+        }
         if (alive) setState(fallback());
       } catch (e) {
         // Unconfigured backend (demo mode) or a transient read failure:
