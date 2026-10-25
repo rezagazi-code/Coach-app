@@ -47,6 +47,7 @@ const fa: Dict = {
   'w.startWorkout': 'شروع تمرین',
   'w.backToProgram': 'بازگشت به برنامه',
   'w.todaySession': 'جلسه امروز',
+  'w.demoBanner': '⚠️ نمونه نمایشی — این برنامه تمرینی شما نیست؛ فقط برای آشنایی با محیط تمرین است و چیزی ثبت نمی‌شود',
 
   'n.title': 'تغذیه امروز',
   'n.kcal': 'کالری',
@@ -318,6 +319,7 @@ const en: Dict = {
   'w.startWorkout': 'Start',
   'w.backToProgram': 'Back to program',
   'w.todaySession': "Today's session",
+  'w.demoBanner': '⚠️ Sample workout — this is not your program; just to try the logger, nothing is saved',
 
   'n.title': "Today's nutrition",
   'n.kcal': 'kcal',

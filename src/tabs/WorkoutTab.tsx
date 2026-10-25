@@ -12,7 +12,8 @@
  *   with the REAL program_id + coach_id.
  * - in_review / pending: waiting card only, no demo.
  * - No program at all: the status prompt + the original demo session as
- *   fallback (unchanged behavior).
+ *   fallback, now headed by an explicit «sample workout» banner (the bare
+ *   demo used to read as the trainee's real session).
  */
 import { useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
@@ -489,7 +490,18 @@ function DemoWorkout() {
     onBack: null,
     demo: true, // try-out only: never enqueues (see LoggerSpec.demo)
   };
-  return <SetLogger spec={spec} />;
+  // The demo session used to render bare as «جلسه امروز: سینه و سرشانه»
+  // under the no-program card — a trainee scrolling past the card read it
+  // as their real session (live confusion on 2026-10-26). Label it
+  // unmistakably as a sample before the logger renders.
+  return (
+    <>
+      <div className="card status-card" role="note">
+        <div className="status-sub">{t('w.demoBanner')}</div>
+      </div>
+      <SetLogger spec={spec} />
+    </>
+  );
 }
 
 // ---------------------------------------------------------------------------
