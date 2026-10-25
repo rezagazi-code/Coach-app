@@ -341,7 +341,16 @@ export default function NutritionTab() {
                 return false;
               }
             };
-            if (!hasTodayCache(PLATE_LOCAL)) {
+            // «ذخیره شد» is only truthful when the whole visible plate came
+            // from the server: if ANY category has a today cache, its taps
+            // may be unsaved, and stamping the day saved would lie exactly
+            // like the pre-0.2.35 false-«synced» trap (a server log for
+            // today can exist from another device while this device holds
+            // unsaved taps). No-rx counts as seeded: nothing to show.
+            const plateCached = hasTodayCache(PLATE_LOCAL);
+            const bankCached = hasTodayCache(BANK_LOCAL);
+            const rxCached = hasTodayCache(PLATE_LOCAL_RX);
+            if (!plateCached) {
               const seeded: Record<string, number> = {};
               for (const it of log.items) {
                 if (it.key === NUTRITION_RX_SENTINEL || it.key === NUTRITION_BANK_SENTINEL) continue;
@@ -355,7 +364,7 @@ export default function NutritionTab() {
                 });
               }
             }
-            if (!hasTodayCache(BANK_LOCAL)) {
+            if (!bankCached) {
               const seededBank: Record<string, number> = {};
               for (const it of log.items) {
                 if (it.key !== NUTRITION_BANK_SENTINEL || typeof it.bankId !== 'string') continue;
@@ -371,7 +380,7 @@ export default function NutritionTab() {
                 });
               }
             }
-            if (freshKeys && !hasTodayCache(PLATE_LOCAL_RX)) {
+            if (freshKeys && !rxCached) {
               const seededRx: Record<string, boolean> = {};
               for (const it of log.items) {
                 if (it.key !== NUTRITION_RX_SENTINEL || !Array.isArray(it.rxTaken)) continue;
@@ -387,7 +396,9 @@ export default function NutritionTab() {
                 });
               }
             }
-            setSavedToday(true);
+            // Only a fully seeded plate equals the server log; a partial
+            // seed leaves unsaved local taps behind the «saved» label.
+            if (!plateCached && !bankCached && (!freshKeys || !rxCached)) setSavedToday(true);
           }
         } catch (err) {
           console.error('[nutrition] server log seed failed', err);
@@ -445,6 +456,7 @@ export default function NutritionTab() {
   };
 
   const tapBank = (id: string) => {
+    setSavedToday(false);
     setBankTaps((prev) => {
       const next = { ...prev, [id]: (prev[id] ?? 0) + 1 };
       persistBank(next);
@@ -454,6 +466,7 @@ export default function NutritionTab() {
   };
 
   const removeBankTap = (id: string) => {
+    setSavedToday(false);
     setBankTaps((prev) => {
       const next = { ...prev };
       delete next[id];
@@ -490,6 +503,7 @@ export default function NutritionTab() {
 
   const setAmount = (key: string, amount: number) => {
     const v = Math.max(0, Math.round(amount * 100) / 100);
+    setSavedToday(false);
     setLogged((prev) => {
       const next = { ...prev, [key]: v };
       persistLocal(next);
@@ -501,6 +515,7 @@ export default function NutritionTab() {
   // amount, not the render closure's stale one — otherwise 10 fast taps
   // collapse into one. Reza's «بیشتر خوردم» spam-tap is exactly this.
   const bumpAmount = (key: string, delta: number) => {
+    setSavedToday(false);
     setLogged((prev) => {
       const v = Math.max(0, Math.round(((prev[key] ?? 0) + delta) * 100) / 100);
       const next = { ...prev, [key]: v };
@@ -755,13 +770,14 @@ export default function NutritionTab() {
                     <input
                       type="checkbox"
                       checked={!!rxDone[k]}
-                      onChange={() =>
+                      onChange={() => {
+                        setSavedToday(false);
                         setRxDone((prev) => {
                           const next = { ...prev, [k]: !prev[k] };
                           persistRxLocal(next);
                           return next;
-                        })
-                      }
+                        });
+                      }}
                     />
                     <span>{rxLabel(p, lang)}</span>
                     <span className="plate-rx-took">{t('n.tookIt')}</span>
