@@ -73,10 +73,6 @@ export function useAthleteProgramStatus(): ProgramState {
           return;
         }
         const { program, coachName } = latest;
-        if (program.status === 'in_review') {
-          if (alive) setState({ kind: 'in_review', program, coachName });
-          return;
-        }
         if (program.status === 'approved' || program.status === 'active') {
           // Exercises belong to THIS program's submission, not simply the
           // newest response: a later red-flag-blocked resubmission writes a
@@ -97,12 +93,15 @@ export function useAthleteProgramStatus(): ProgramState {
           }
           return;
         }
-        // draft / archived — the newest program is dead, but an older
-        // APPROVED program may still be live (e.g. a resubmission the
-        // coach rejected). Falling straight to «no program» hid that
-        // session and left the trainee with only the demo workout until
-        // the next approval. Only when no approved program exists is a
-        // fresh questionnaire the way back.
+        // in_review / draft / archived — the newest program is not
+        // trainable, but an older APPROVED program may still be live.
+        // A fresh resubmission awaiting the coach (in_review) must not
+        // hide it either: before this, re-doing the questionnaire left
+        // the trainee with only the demo workout until the coach
+        // decided — the same trap class as the rejected-resubmission fix
+        // below, which covered draft/archived but not in_review. Only
+        // when no approved program exists is a fresh questionnaire (or
+        // the awaiting-review card) the way back.
         try {
           const active = await getAthleteActiveProgram(athleteId);
           if (active) {
@@ -122,6 +121,10 @@ export function useAthleteProgramStatus(): ProgramState {
           }
         } catch {
           /* fall through to the local signal below */
+        }
+        if (program.status === 'in_review') {
+          if (alive) setState({ kind: 'in_review', program, coachName });
+          return;
         }
         if (alive) setState(fallback());
       } catch (e) {
