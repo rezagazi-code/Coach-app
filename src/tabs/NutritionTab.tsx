@@ -24,6 +24,7 @@ import { useAuth } from '../lib/auth';
 import Toast from '../components/Toast';
 import { FOOD_BANK, type FoodBankItem } from '../lib/foodBank';
 import {
+  getAthleteLatestResponse,
   getCurrentAthleteId,
   getSupplementReview,
   isSupabaseConfigured,
@@ -99,7 +100,22 @@ function DoctorHandoffCard({ athleteId, athleteName }: { athleteId: string | nul
         // this, a coach reopen (approve → pending) would leave the revoked
         // handoff visible until restart. Read failures leave the card
         // untouched (no flicker on a transient offline blip).
-        if (alive) setReview(row && row.status === 'approved' ? row : null);
+        //
+        // Same rule as the coach side's decidedForCurrent: a decision only
+        // stands for the response it was made on. Without this, a trainee
+        // resubmission (new response row) left the OLD approved handoff —
+        // built from superseded answers — on screen while the coach was
+        // already reviewing the fresh draft. Only positive evidence hides
+        // it (a newer response actually fetched); a failed response read
+        // keeps the card, so a transient offline blip never flickers it away.
+        // Unconfigured/demo mode has no server response to compare against,
+        // so the check applies to configured reads only.
+        let approved = row && row.status === 'approved' ? row : null;
+        if (approved && approved.response_id && isSupabaseConfigured) {
+          const latest = await getAthleteLatestResponse(athleteId).catch(() => null);
+          if (latest && latest.id !== approved.response_id) approved = null;
+        }
+        if (alive) setReview(approved);
       } catch {
         /* leave hidden */
       }
