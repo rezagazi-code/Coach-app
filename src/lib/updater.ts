@@ -45,9 +45,11 @@ export interface UpdateMetadata {
   notes?: string;
 }
 
-/** True only inside the installed Android app — web/demo never updates. */
+/** True only inside the installed Android app — web/demo never updates,
+ * and iOS never updates either: this updater downloads + installs an APK,
+ * which is meaningless on iOS (the iOS build skips UpdateGate via this). */
 export function isNativePlatform(): boolean {
-  return Capacitor.isNativePlatform();
+  return Capacitor.getPlatform() === 'android';
 }
 
 /* ------------------------------------------------------------------ *

@@ -1,0 +1,69 @@
+# iOS build (unsigned) — «مربی من»
+#
+# Runs on a GitHub macOS runner because iOS builds need Xcode (unavailable
+# on Linux). This workflow produces an UNSIGNED .ipa: it proves the Xcode
+# project compiles and packages, but an unsigned IPA does NOT install on a
+# stock iPhone. Installing on a real device needs Apple signing:
+#   - a free personal Apple ID via Xcode/AltStore (7-day cert, own device), or
+#   - an Apple Developer account ($99/yr) for TestFlight / App Store.
+# When signing secrets are added, extend the archive step with
+# CODE_SIGN_IDENTITY + a provisioning profile instead of CODE_SIGNING_ALLOWED=NO.
+#
+# Mirrors the Fit AI iOS setup (same Capacitor 8 / SPM layout, same
+# unsigned-archive approach). The in-app APK updater is Android-only by
+# design: src/lib/updater.ts gates UpdateGate on getPlatform() === 'android',
+# so the iOS build never attempts an APK download/install.
+name: Build iOS (unsigned)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - "src/**"
+      - "public/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "capacitor.config.ts"
+      - "vite.config.ts"
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync ios
+      - name: Archive (unsigned)
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj \
+            -scheme App -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/App.xcarchive archive \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Verify bundle id and display name
+        run: |
+          APP_PLIST="build/App.xcarchive/Products/Applications/App.app/Info.plist"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP_PLIST")
+          DISPLAY_NAME=$(/usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$APP_PLIST")
+          echo "bundle id: $BUNDLE_ID"
+          echo "display name: $DISPLAY_NAME"
+          [ "$BUNDLE_ID" = "ir.coachstudio.app" ] || { echo "unexpected bundle id"; exit 1; }
+          [ "$DISPLAY_NAME" = "مربی من" ] || { echo "unexpected display name"; exit 1; }
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p Payload
+          cp -r build/App.xcarchive/Products/Applications/App.app Payload/
+          zip -r morabi-man-unsigned.ipa Payload
+          ls -la morabi-man-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coach-ios-unsigned
+          path: morabi-man-unsigned.ipa

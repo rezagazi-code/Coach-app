@@ -6,6 +6,7 @@
     "@capacitor/cli": "^8.5.3",
     "@capacitor/core": "^8.5.3",
     "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/ios": "^8.5.3",
     "@capacitor/preferences": "^8.0.1",
     "@capawesome-team/capacitor-file-opener": "^8.0.6",
     "@supabase/supabase-js": "^2.118.0",
