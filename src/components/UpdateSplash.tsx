@@ -46,11 +46,28 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
   /** The last stage-tagged failure — drives the honest error state. */
   const [stageErr, setStageErr] = useState<UpdateStageError | null>(null);
   const runningRef = useRef(false);
+  /**
+   * Skip = "continue WITHOUT updating" for this session. The gate stays
+   * mounted (it renders the children after pass()), so an in-flight
+   * check/download keeps running after the tap — without this guard it
+   * would finish, verify, and pop the system installer over the app the
+   * user just chose to keep using. The skip button is rendered in EVERY
+   * phase (checking/downloading/verifying/installing), so a tap mid-
+   * download is fully reachable: the staged checks below abandon the
+   * update instead of delivering it. Capacitor Filesystem offers no
+   * download cancellation, so abandoning at stage boundaries is the fix.
+   */
+  const cancelledRef = useRef(false);
 
   const pass = useCallback(() => {
     sessionGatePassed = true;
     setPassed(true);
   }, []);
+
+  const skip = useCallback(() => {
+    cancelledRef.current = true;
+    pass();
+  }, [pass]);
 
   /** Normalize any throwable into a stage-tagged error for the UI. */
   const toStageError = useCallback((err: unknown, fallback: UpdateStage): UpdateStageError => {
@@ -76,9 +93,16 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
         pass(); // up to date — dismiss immediately, no artificial delay
         return;
       }
+      // Skipped while checking: do not start a download the user declined.
+      if (cancelledRef.current) return;
       setMeta(found);
       setPhase('downloading');
       const file = await downloadUpdate(found, setProgress); // throws UpdateStageError('download', …)
+      // Skipped mid-download: drop the file, never verify/install it.
+      if (cancelledRef.current) {
+        await deleteUpdateFile().catch(() => undefined);
+        return;
+      }
       setPhase('verifying');
       let ok: boolean;
       try {
@@ -91,6 +115,12 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
         await deleteUpdateFile().catch(() => undefined);
         setHashFailed(true);
         throw new UpdateStageError('verify', 'sha256 mismatch');
+      }
+      // Skipped during verify: a verified file the user declined still
+      // must not reach the installer.
+      if (cancelledRef.current) {
+        await deleteUpdateFile().catch(() => undefined);
+        return;
       }
       setPhase('installing');
       try {
@@ -188,7 +218,7 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
             {t('upd.retry')}
           </button>
         )}
-        <button type="button" className="btn-ghost upd-btn" onClick={pass}>
+        <button type="button" className="btn-ghost upd-btn" onClick={skip}>
           {t('upd.skip')}
         </button>
       </div>
