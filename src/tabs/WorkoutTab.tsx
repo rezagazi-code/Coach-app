@@ -121,6 +121,15 @@ interface LoggerSpec {
   programId: string | null;
   coachId: string | null;
   onBack: (() => void) | null; // program mode: back to the exercise list
+  /**
+   * Demo (no-program fallback) logger: the athlete tries the logger UI
+   * before they have a program. It must NEVER write to the sync queue:
+   * the fixture sets (30×12, 32.5×10 pre-logged) are not real workouts,
+   * and logging them would plant phantom sessions/sets — under the fake
+   * exercise id 'w.exercise' — in the coach's records the moment the
+   * queue flushes. Demo logging stays in-memory only.
+   */
+  demo?: boolean;
 }
 
 function SetLogger({ spec }: { spec: LoggerSpec }) {
@@ -148,6 +157,12 @@ function SetLogger({ spec }: { spec: LoggerSpec }) {
   const ensureSession = (): string => {
     const existing = sessionIdRef.current;
     if (existing) return existing.id;
+    // Demo logger: local-only session id, nothing enqueued (see spec.demo).
+    if (spec.demo) {
+      const id = newClientUuid();
+      sessionIdRef.current = { id, startedAtMs: Date.parse(new Date().toISOString()) };
+      return id;
+    }
     const id = newClientUuid();
     const startedAt = new Date().toISOString();
     sessionIdRef.current = { id, startedAtMs: Date.parse(startedAt) };
@@ -223,7 +238,11 @@ function SetLogger({ spec }: { spec: LoggerSpec }) {
     if (isPR) setShowPR(true);
     // Offline queue: session logs persist locally and sync (idempotent)
     // whenever the Supabase project exists and the athlete is known.
+    // Demo logger skips the queue entirely (spec.demo) — ensureSession
+    // already returned a local-only id, so no set is enqueued either.
+    // The advance logic below still runs: the demo UI must behave.
     const sid = ensureSession();
+    if (!spec.demo) {
     enqueueLoggedSet(sid, {
       exercise_id: spec.exerciseKey,
       set_number: active + 1,
@@ -232,6 +251,7 @@ function SetLogger({ spec }: { spec: LoggerSpec }) {
       rpe,
       is_pr: isPR,
     });
+    }
     // Advance to the next pending set — wrap to the FIRST pending set when
     // the logged set was the last pending one ahead (out-of-order logging).
     // Otherwise `active` stays on the just-logged (done) set and the whole
@@ -258,6 +278,8 @@ function SetLogger({ spec }: { spec: LoggerSpec }) {
     // dropped after its retries while this entry still flushed — it beats
     // the now() column default, which would otherwise record started_at =
     // finish time alongside a duration computed from the real start.
+    // Demo logger: feedback only, nothing enqueued (spec.demo).
+    if (spec.demo) return;
     enqueueWrite('workout_sessions', {
       id: sid,
       athlete_id: getCurrentAthleteId(),
@@ -465,6 +487,7 @@ function DemoWorkout() {
     programId: null,
     coachId: null,
     onBack: null,
+    demo: true, // try-out only: never enqueues (see LoggerSpec.demo)
   };
   return <SetLogger spec={spec} />;
 }
