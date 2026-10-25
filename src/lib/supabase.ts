@@ -1686,7 +1686,20 @@ export async function flushQueue(): Promise<{ flushed: number; pending: number }
         if (entry.table === 'programs') pendingProgramUuids.delete(String(entry.data.client_uuid));
       } catch {
         entry.attempts++;
-        if (entry.attempts < QUEUE_MAX_ATTEMPTS) keepById.set(entry.id, entry);
+        if (entry.attempts < QUEUE_MAX_ATTEMPTS) {
+          keepById.set(entry.id, entry);
+        } else {
+          // Retry-cap death: the entry MUST leave the queue. The merge
+          // below re-reads `latest` from storage — where this entry still
+          // sits with its pre-increment attempts — so without recording
+          // the drop here, the merge resurrects it at attempts-1 and it
+          // retries forever (every online/visibilitychange flush), never
+          // reaching the 25-attempt death the queue contract promises.
+          // (For questionnaire submissions the stored payload still
+          // repairs exactly the dropped rows on the next persist run.)
+          console.warn('[queue] dropping entry after max attempts', entry.table, entry.id);
+          droppedIds.add(entry.id);
+        }
       }
     }
     // Merge against the LATEST queue: entries enqueued while this flush was
