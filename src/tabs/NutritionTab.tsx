@@ -398,7 +398,11 @@ export default function NutritionTab() {
             }
             // Only a fully seeded plate equals the server log; a partial
             // seed leaves unsaved local taps behind the «saved» label.
-            if (!plateCached && !bankCached && (!freshKeys || !rxCached)) setSavedToday(true);
+            // freshKeys MUST be non-null: when the targets fetch fails it
+            // stays null, the rx seed above is skipped, and stamping saved
+            // would let the next «ثبت روز» upsert a log that drops the
+            // server's rx-taken ticks (same false-«saved» trap class).
+            if (!plateCached && !bankCached && freshKeys && !rxCached) setSavedToday(true);
           }
         } catch (err) {
           console.error('[nutrition] server log seed failed', err);
