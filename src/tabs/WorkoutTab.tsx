@@ -226,7 +226,10 @@ function SetLogger({ spec }: { spec: LoggerSpec }) {
     // the athlete's previous best for this same exercise.
     const prevBest = loadBest(spec.exerciseKey) ?? spec.prFallback;
     const isPR = epley(activeSet.weight, activeSet.reps) > epley(prevBest.weight, prevBest.reps) + 1e-9;
-    if (isPR) {
+    // Demo logger stays in-memory only (see LoggerSpec.demo): a demo PR
+    // must not persist — the banner promises nothing is saved, and the
+    // persisted demo best would otherwise sit in localStorage.
+    if (isPR && !spec.demo) {
       saveBest(spec.exerciseKey, { weight: activeSet.weight, reps: activeSet.reps });
     }
     setSets((prev) => {
