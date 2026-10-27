@@ -468,8 +468,16 @@ export default function CoachPanel() {
       // A stale load's failure must not paint an error banner over the
       // newer load's good data — the newer load reports its own result.
       if (!silent && loadSeq === loadSeqRef.current) setLoadError(true);
+    } finally {
+      // The stale-load early returns above must not strand loading=true:
+      // a non-silent load that went stale (e.g. a silent foreground
+      // re-check started while the first load was still in flight) used
+      // to return without clearing loading, and the silent load never
+      // touches it — so the panel sat on «در حال بارگذاری» forever even
+      // though fresh data had arrived. finally matches the
+      // SupplementReviewSection pattern.
+      if (!silent) setLoading(false);
     }
-    if (!silent) setLoading(false);
   }, [lang]);
 
   useEffect(() => {
