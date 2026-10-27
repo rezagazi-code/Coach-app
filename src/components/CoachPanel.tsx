@@ -523,6 +523,13 @@ export default function CoachPanel() {
   const decide = useCallback(
     async (decision: 'approved' | 'rejected') => {
       if (!detail || deciding) return;
+      // Invalidate any load in flight: c37a5dc guarded the list writes
+      // against a NEWER load, but a decision never bumped the sequence —
+      // so a silent foreground load that started BEFORE this tap still
+      // passed the check and overwrote the filtered queue with its
+      // pre-decision list, resurrecting the just-decided review. Bump
+      // BEFORE the await so a load resolving mid-decision is discarded.
+      loadSeqRef.current++;
       setDeciding(true);
       try {
         if (isSupabaseConfigured && detail.programId) {
@@ -605,6 +612,9 @@ export default function CoachPanel() {
       }
       setDeleteArmed((prev) => ({ ...prev, [athleteId]: false }));
       setDeletingId(athleteId);
+      // Same trap as decide above: invalidate any load in flight, or its
+      // pre-delete lists resurrect the deleted athlete on resolve.
+      loadSeqRef.current++;
       try {
         await deleteAthlete(athleteId);
         setCards((prev) => prev.filter((c) => c.athlete.id !== athleteId));
