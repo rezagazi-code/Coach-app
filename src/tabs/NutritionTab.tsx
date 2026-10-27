@@ -264,6 +264,14 @@ export default function NutritionTab() {
   const [saving, setSaving] = useState(false);
   const [savedToday, setSavedToday] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  // Same stale-load trap class as DoctorHandoffCard above (fixed 0.2.37+):
+  // loadTargets re-runs on foreground via BOTH visibilitychange and focus,
+  // so two runs routinely overlap — without a sequence guard the older
+  // run's targets fetch can resolve after the newer one and overwrite a
+  // fresh coach plate edit with stale items/rx, including resurrecting a
+  // prescription tick the coach just removed (the prune below keys off
+  // the run's own freshKeys).
+  const targetsSeqRef = useRef(0);
 
   const athleteId = auth.athlete?.id ?? getCurrentAthleteId();
   const coachId = auth.athlete?.coach_id ?? null;
@@ -300,6 +308,7 @@ export default function NutritionTab() {
   useEffect(() => {
     let alive = true;
     const loadTargets = async (silent: boolean) => {
+      const seq = ++targetsSeqRef.current;
       if (!silent) setLoading(true);
       if (!isSupabaseConfigured) {
         if (alive) {
@@ -319,7 +328,7 @@ export default function NutritionTab() {
           return;
         }
         const row = await latestNutritionTargetsFor(athleteId);
-        if (alive) {
+        if (alive && seq === targetsSeqRef.current) {
           setItems(row?.food_items ?? []);
           const freshRx = row?.prescriptions ?? [];
           setRx(freshRx);
@@ -355,7 +364,7 @@ export default function NutritionTab() {
       if (athleteId) {
         try {
           const log = await latestNutritionLogFor(athleteId, 0);
-          if (alive && log && log.log_date === localDateStr()) {
+          if (alive && seq === targetsSeqRef.current && log && log.log_date === localDateStr()) {
             const hasTodayCache = (key: string): boolean => {
               try {
                 const raw = localStorage.getItem(key);
