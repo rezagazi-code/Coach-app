@@ -108,11 +108,18 @@ export default function SupplementReviewSection({
   // A note the coach typed but has not saved yet must survive a reload;
   // without this, re-expanding after a trainee resubmission would wipe it.
   const noteDirtyRef = useRef(false);
+  // Stale-load guard (same trap class as the CoachPanel queue fix): a
+  // foreground silent load whose fetch started BEFORE the coach's decision
+  // must not overwrite the decided review when it resolves late — without
+  // this, an approval visibly vanished back to the draft view until the
+  // next expand, even though the server held the approved row.
+  const loadSeqRef = useRef(0);
 
   const demo = !isSupabaseConfigured;
 
   const load = async (silent = false) => {
     if (loading) return;
+    const loadSeq = ++loadSeqRef.current;
     if (!silent) setLoading(true);
     try {
       if (demo) {
@@ -137,6 +144,9 @@ export default function SupplementReviewSection({
             // Fallback: a decision saved locally (migration not run / offline)
             .then((r) => r ?? readLocalSuppReviews()[athleteId] ?? null),
         ]);
+        // Stale load: a newer load started, or the coach decided while
+        // this fetch was in flight — never overwrite the newer state.
+        if (loadSeq !== loadSeqRef.current) return;
         setResponse(resp);
         setReview(rev);
         if (!noteDirtyRef.current) setNote(rev?.coach_note ?? '');
@@ -194,6 +204,9 @@ export default function SupplementReviewSection({
 
   const decide = async (status: 'approved' | 'rejected') => {
     if (!draft || saving) return;
+    // Invalidate any load in flight: its pre-decision row must not land
+    // after this decision's setReview below.
+    loadSeqRef.current++;
     setSaving(true);
     try {
       const snapshot = JSON.parse(JSON.stringify(draft)) as Record<string, unknown>;
@@ -254,6 +267,9 @@ export default function SupplementReviewSection({
   // back with Approve/Reject, exactly like a fresh decision flow.
   const reopen = async () => {
     if (!review || saving) return;
+    // Same invalidation as decide(): an in-flight load's pre-reopen row
+    // must not overwrite the pending state written below.
+    loadSeqRef.current++;
     setSaving(true);
     try {
       const pending: SupplementReview = {
