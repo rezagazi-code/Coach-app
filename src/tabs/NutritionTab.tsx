@@ -18,7 +18,7 @@
  * Demo mode (server unconfigured): sample program, clearly labeled,
  * stored on this device only.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLang } from '../lib/i18n';
 import { useAuth } from '../lib/auth';
 import Toast from '../components/Toast';
@@ -82,10 +82,18 @@ function DoctorHandoffCard({ athleteId, athleteName }: { athleteId: string | nul
   const { t, lang } = useLang();
   const [review, setReview] = useState<SupplementReview | null>(null);
   const [copied, setCopied] = useState(false);
+  const seqRef = useRef(0);
 
   useEffect(() => {
     let alive = true;
     const load = async () => {
+      // Same stale-load trap class as the CoachPanel queue fixes: this
+      // load re-runs on foreground via BOTH visibilitychange and focus,
+      // which routinely fire together, and it runs two sequential reads
+      // — so an older load that started before a coach decision can
+      // resolve after the newer one and resurrect a revoked handoff (or
+      // hide a fresh approval) until the next foreground event.
+      const seq = ++seqRef.current;
       if (!athleteId) return;
       try {
         const row = isSupabaseConfigured
@@ -115,7 +123,7 @@ function DoctorHandoffCard({ athleteId, athleteName }: { athleteId: string | nul
           const latest = await getAthleteLatestResponse(athleteId).catch(() => null);
           if (latest && latest.id !== approved.response_id) approved = null;
         }
-        if (alive) setReview(approved);
+        if (alive && seq === seqRef.current) setReview(approved);
       } catch {
         /* leave hidden */
       }

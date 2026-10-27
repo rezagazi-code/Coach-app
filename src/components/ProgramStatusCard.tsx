@@ -11,7 +11,7 @@
  *   approved/active   → «approved by {coach}» (+ exercise list when the
  *                       persisted answers carry it)
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLang } from '../lib/i18n';
 import {
   getAthleteActiveProgram,
@@ -52,24 +52,41 @@ function hasOwnPendingSubmission(athleteId: string | null): boolean {
 
 export function useAthleteProgramStatus(): ProgramState {
   const [state, setState] = useState<ProgramState>({ kind: 'loading' });
+  const seqRef = useRef(0);
   useEffect(() => {
     let alive = true;
     // Re-runnable: the tab host keeps WorkoutTab mounted while the athlete
     // submits in the questionnaire tab, so the status must refresh on the
     // in-session submit event — not only on mount.
+    //
+    // Same trap class as the CoachPanel queue fixes (c37a5dc/83414b8):
+    // refresh() fires from THREE sources that routinely burst together —
+    // km-submission-stored (dispatched twice per submit: once immediately
+    // and once after the queue syncs), km-queue-flushed, and foreground
+    // (visibilitychange + focus) — and each refresh runs several
+    // sequential reads. Without a sequence check, an older refresh that
+    // started before the sync can resolve after the newer one and
+    // overwrite the fresh status with its pre-sync state, leaving the
+    // trainee stuck on «sent to coach» for an already-active program
+    // until the next foreground event. The `alive` flag alone cannot
+    // catch this: both refreshes are alive.
     const refresh = () => {
+      const seq = ++seqRef.current;
+      const set = (s: ProgramState) => {
+        if (alive && seq === seqRef.current) setState(s);
+      };
       (async () => {
       const athleteId = getCurrentAthleteId();
       const fallback = (): ProgramState =>
         hasOwnPendingSubmission(athleteId) ? { kind: 'pending' } : { kind: 'none' };
       try {
         if (!athleteId) {
-          if (alive) setState(fallback());
+          set(fallback());
           return;
         }
         const latest = await getAthleteLatestProgram(athleteId);
         if (!latest) {
-          if (alive) setState(fallback());
+          set(fallback());
           return;
         }
         const { program, coachName } = latest;
@@ -84,13 +101,11 @@ export function useAthleteProgramStatus(): ProgramState {
             (resp?.answers as Record<string, unknown> | undefined)?._program &&
               ((resp?.answers as Record<string, unknown>)._program as Record<string, unknown>).exercises
           );
-          if (alive) {
-            setState(
-              days
-                ? { kind: 'ready', program, coachName, days }
-                : { kind: 'ready-noexercises', program, coachName }
-            );
-          }
+          set(
+            days
+              ? { kind: 'ready', program, coachName, days }
+              : { kind: 'ready-noexercises', program, coachName }
+          );
           return;
         }
         // in_review / draft / archived — the newest program is not
@@ -110,23 +125,21 @@ export function useAthleteProgramStatus(): ProgramState {
               (resp?.answers as Record<string, unknown> | undefined)?._program &&
                 ((resp?.answers as Record<string, unknown>)._program as Record<string, unknown>).exercises
             );
-            if (alive) {
-              setState(
-                days
-                  ? { kind: 'ready', program: active.program, coachName: active.coachName, days }
-                  : { kind: 'ready-noexercises', program: active.program, coachName: active.coachName }
-              );
-            }
+            set(
+              days
+                ? { kind: 'ready', program: active.program, coachName: active.coachName, days }
+                : { kind: 'ready-noexercises', program: active.program, coachName: active.coachName }
+            );
             return;
           }
         } catch {
           /* fall through to the local signal below */
         }
         if (program.status === 'in_review') {
-          if (alive) setState({ kind: 'in_review', program, coachName });
+          set({ kind: 'in_review', program, coachName });
           return;
         }
-        if (alive) setState(fallback());
+        set(fallback());
       } catch (e) {
         // Unconfigured backend (demo mode) or a transient read failure:
         // never strand the UI — the local submission signal decides.
@@ -134,7 +147,7 @@ export function useAthleteProgramStatus(): ProgramState {
           if (!(e instanceof SupabaseNotConfiguredError)) {
             console.warn('[program-status] read failed, using local signal', e);
           }
-          setState(fallback());
+          set(fallback());
         }
       }
     })();
