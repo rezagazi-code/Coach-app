@@ -118,7 +118,13 @@ export default function SupplementReviewSection({
   const demo = !isSupabaseConfigured;
 
   const load = async (silent = false) => {
-    if (loading) return;
+    // No `loading` guard here on purpose: one used to drop every
+    // foreground re-check (and every re-expand) while a non-silent load
+    // was in flight — so a trainee resubmission landing mid-load left
+    // the coach deciding on the superseded draft, and a hung fetch wedged
+    // the section stale until remount. Overlapping loads are already safe:
+    // loadSeqRef skips the older run's writes, and decide()/reopen() bump
+    // the sequence to invalidate in-flight pre-decision rows.
     const loadSeq = ++loadSeqRef.current;
     if (!silent) setLoading(true);
     try {
@@ -159,8 +165,8 @@ export default function SupplementReviewSection({
 
   // Call the LATEST load() from listeners: the foreground effect below
   // subscribes once per open, but load() is re-created every render — a
-  // listener holding the first closure would read a stale `loading` guard
-  // and block every later re-check.
+  // listener holding the first closure would read stale refs (e.g. the
+  // unsaved-note guard) and miss later re-checks.
   const loadRef = useRef(load);
   useEffect(() => {
     loadRef.current = load;
