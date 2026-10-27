@@ -389,6 +389,12 @@ export default function CoachPanel() {
     const loadSeq = ++loadSeqRef.current;
     try {
       const [pending, athletes] = await Promise.all([listPendingReviews(), listAthletes()]);
+      // Same stale-load guard as the nutrition block below: a load that
+      // started BEFORE a coach decision (or a newer foreground load) must
+      // not overwrite newer state when it resolves late — without this, a
+      // just-decided review reappeared in the queue and a just-arrived
+      // submission vanished until the next foreground refresh.
+      if (loadSeq !== loadSeqRef.current) return;
       setReviews(
         pending.map((p) => ({
           key: p.program.id,
@@ -406,6 +412,7 @@ export default function CoachPanel() {
           program: await latestProgramFor(a.id).catch(() => null),
         }))
       );
+      if (loadSeq !== loadSeqRef.current) return;
       setCards(withPrograms);
       // «بشقاب روزانه»: per athlete, load the current program (for the
       // editor drafts + resolving over-eating keys to labels) and the
@@ -458,7 +465,9 @@ export default function CoachPanel() {
       });
     } catch (err) {
       console.error('[coach-panel] load failed', err);
-      if (!silent) setLoadError(true);
+      // A stale load's failure must not paint an error banner over the
+      // newer load's good data — the newer load reports its own result.
+      if (!silent && loadSeq === loadSeqRef.current) setLoadError(true);
     }
     if (!silent) setLoading(false);
   }, [lang]);
