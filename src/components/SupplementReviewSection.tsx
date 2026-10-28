@@ -236,8 +236,16 @@ export default function SupplementReviewSection({
         writeLocalSuppReviews(all);
         return row;
       };
+      // The note is persisted by every path below (server row, or the
+      // local fallback when the server write fails), so the dirty flag
+      // must clear with it — mirroring CoachPanel's plateDirty rule.
+      // Without this, the flag stayed set forever after the first
+      // decision, and a later trainee resubmission re-opened the note
+      // field pre-filled with the PREVIOUS decision's note, which then
+      // rode the new decision if the coach approved without editing it.
       if (demo) {
         setReview(writeLocal());
+        noteDirtyRef.current = false;
       } else {
         try {
           const row = await saveSupplementReview({
@@ -256,8 +264,10 @@ export default function SupplementReviewSection({
           all[athleteId] = row;
           writeLocalSuppReviews(all);
           setReview(row);
+          noteDirtyRef.current = false;
         } catch {
           setReview(writeLocal());
+          noteDirtyRef.current = false;
         }
       }
     } finally {
@@ -289,8 +299,13 @@ export default function SupplementReviewSection({
         writeLocalSuppReviews(all);
         setReview(pending);
       };
+      // Reopen keeps the saved note (it persists review.coach_note), so
+      // clearing the dirty flag is safe here too: a later load restores
+      // exactly that note instead of a stale typed one. (In the decided
+      // view there is no textarea, so no unsaved typed note can exist.)
       if (demo) {
         writeLocalPending();
+        noteDirtyRef.current = false;
       } else {
         try {
           const row = await saveSupplementReview({
@@ -307,8 +322,10 @@ export default function SupplementReviewSection({
           all[athleteId] = row;
           writeLocalSuppReviews(all);
           setReview(row);
+          noteDirtyRef.current = false;
         } catch {
           writeLocalPending();
+          noteDirtyRef.current = false;
         }
       }
     } finally {
