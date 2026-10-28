@@ -331,6 +331,13 @@ export default function CoachPanel() {
   const [deleteArmed, setDeleteArmed] = useState<Record<string, boolean>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const localPlates = useRef<Record<string, PlateDraft>>(readLocalPlates());
+  // Athletes whose plate draft has UNSAVED edits (typed in the editor but
+  // not yet saved). A foreground re-check must not clobber those — but it
+  // must refresh every other athlete from the server, or targets changed
+  // from another session never appear and a later save overwrites them
+  // with the stale draft (the old `{...draftsNext, ...prev}` merge kept
+  // the previous draft wholesale for every athlete).
+  const plateDirty = useRef<Set<string>>(new Set());
   // Guards the openDetail async fetch: an earlier card's response must not
   // overwrite the answers/flags of a card opened afterwards (coach taps A,
   // goes back, taps B — A's response resolving later would show A's
@@ -449,7 +456,15 @@ export default function CoachPanel() {
           })
         );
         if (seq !== loadSeqRef.current) return; // stale load — a newer load() is in flight
-        setPlateDrafts((prev) => ({ ...draftsNext, ...prev }));
+        setPlateDrafts((prev) => {
+          const next = { ...prev, ...draftsNext };
+          // Only an unsaved in-progress edit keeps the previous draft;
+          // every other athlete takes the freshly fetched server copy.
+          for (const id of plateDirty.current) {
+            if (id in prev) next[id] = prev[id];
+          }
+          return next;
+        });
         setOverFlags(overNext);
       })();
       // Seed note drafts once per athlete: the program's saved note wins,
@@ -637,6 +652,7 @@ export default function CoachPanel() {
         writeLocalNotes(localNotes.current);
         delete localPlates.current[athleteId];
         writeLocalPlates(localPlates.current);
+        plateDirty.current.delete(athleteId);
         setDrafts((prev) => {
           const next = { ...prev };
           delete next[athleteId];
@@ -670,6 +686,7 @@ export default function CoachPanel() {
 
   const patchPlateItem = useCallback(
     (athleteId: string, idx: number, patch: Partial<NutritionFoodItem>) => {
+      plateDirty.current.add(athleteId);
       setPlateDrafts((prev) => {
         const draft = prev[athleteId] ?? { items: [], rx: [] };
         const items = draft.items.map((it, i) => (i === idx ? { ...it, ...patch } : it));
@@ -680,6 +697,7 @@ export default function CoachPanel() {
   );
 
   const addPlateItem = useCallback((athleteId: string) => {
+    plateDirty.current.add(athleteId);
     setPlateDrafts((prev) => {
       const draft = prev[athleteId] ?? { items: [], rx: [] };
       const blank: NutritionFoodItem = {
@@ -694,6 +712,7 @@ export default function CoachPanel() {
   }, []);
 
   const removePlateItem = useCallback((athleteId: string, idx: number) => {
+    plateDirty.current.add(athleteId);
     setPlateDrafts((prev) => {
       const draft = prev[athleteId] ?? { items: [], rx: [] };
       return { ...prev, [athleteId]: { ...draft, items: draft.items.filter((_, i) => i !== idx) } };
@@ -702,6 +721,7 @@ export default function CoachPanel() {
 
   const patchRx = useCallback(
     (athleteId: string, idx: number, patch: Partial<NutritionPrescription>) => {
+      plateDirty.current.add(athleteId);
       setPlateDrafts((prev) => {
         const draft = prev[athleteId] ?? { items: [], rx: [] };
         const rx = draft.rx.map((p, i) => (i === idx ? { ...p, ...patch } : p));
@@ -712,6 +732,7 @@ export default function CoachPanel() {
   );
 
   const addRx = useCallback((athleteId: string) => {
+    plateDirty.current.add(athleteId);
     setPlateDrafts((prev) => {
       const draft = prev[athleteId] ?? { items: [], rx: [] };
       return { ...prev, [athleteId]: { ...draft, rx: [...draft.rx, { name_fa: '', name_en: '' }] } };
@@ -719,6 +740,7 @@ export default function CoachPanel() {
   }, []);
 
   const removeRx = useCallback((athleteId: string, idx: number) => {
+    plateDirty.current.add(athleteId);
     setPlateDrafts((prev) => {
       const draft = prev[athleteId] ?? { items: [], rx: [] };
       return { ...prev, [athleteId]: { ...draft, rx: draft.rx.filter((_, i) => i !== idx) } };
@@ -749,6 +771,7 @@ export default function CoachPanel() {
       writeLocalPlates(localPlates.current);
       setPlateDrafts((prev) => ({ ...prev, [athleteId]: { items, rx } }));
       if (!isSupabaseConfigured) {
+        plateDirty.current.delete(athleteId);
         showToast(t('cp.nutritionSaved'));
       } else {
         try {
@@ -758,6 +781,9 @@ export default function CoachPanel() {
             food_items: items,
             prescriptions: rx,
           });
+          // Clear dirty only on success: a failed save keeps the draft
+          // protected from foreground re-checks until the coach retries.
+          plateDirty.current.delete(athleteId);
           showToast(t('cp.nutritionSaved'));
         } catch (err) {
           console.error('[coach-panel] nutrition save failed', err);

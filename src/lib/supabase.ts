@@ -1596,9 +1596,16 @@ export async function flushQueue(): Promise<{ flushed: number; pending: number }
     return { flushed: 0, pending: queueLength() };
   }
   flushing = true;
+  // Ids present when this run started. Entries enqueued mid-run (e.g. a
+  // workout logged while a background flush is in flight) are NOT in the
+  // snapshot — but the old code returned early from the concurrent call
+  // and nothing re-triggered, so they sat unsynced until the next
+  // online/visibilitychange event, which may never come in-session.
+  let snapshotIds: Set<string> | null = null;
   try {
     const client = requireClient();
     const snapshot = readQueue();
+    snapshotIds = new Set(snapshot.map((e) => e.id));
     // Entries logged before login carry athlete_id=null — stamp the
     // identity known now so they can finally sync. Provenance guard: only
     // entries with unknown provenance (logged out) or bound to the current
@@ -1713,6 +1720,14 @@ export async function flushQueue(): Promise<{ flushed: number; pending: number }
     return { flushed, pending: finalQueue.length };
   } finally {
     flushing = false;
+    // Drain what arrived mid-run: a chained pass only triggers on entries
+    // that were NOT in this run's snapshot, so held entries (provenance
+    // hold, missing athlete, FK wait) can never spin it into a loop —
+    // each chained pass re-checks the same condition on its own snapshot.
+    const started = snapshotIds;
+    if (started && readQueue().some((e) => !started.has(e.id))) {
+      void flushQueue();
+    }
   }
 }
 

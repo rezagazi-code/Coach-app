@@ -252,6 +252,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [coach, setCoach] = useState<Coach | null>(null);
   const [athlete, setAthlete] = useState<Athlete | null>(null);
   const runRef = useRef(0);
+  // Last status a bootstrap run actually resolved to. A failed bootstrap
+  // must fall back to this — never blindly to 'signedIn' (see catch below):
+  // a pending coach re-checking approval during a read failure would
+  // otherwise land in the coach panel on a stale inactive row, and a
+  // first-boot failure would land in the athlete shell with no identity.
+  const lastStatusRef = useRef<AuthStatus | null>(null);
 
   /** §18.3 bootstrap: session → role → coach/athlete profile → status. */
   const bootstrap = useCallback(async (next: Session | null) => {
@@ -262,6 +268,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCoach(null);
       setAthlete(null);
       setCurrentAthleteId(null);
+      lastStatusRef.current = null;
       if (run === runRef.current) setStatus(isSupabaseConfigured ? 'signedOut' : 'loading');
       return;
     }
@@ -279,6 +286,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (coachPending) {
         setAthlete(null);
         setCurrentAthleteId(null);
+        lastStatusRef.current = 'pending';
         setStatus('pending');
         return;
       }
@@ -369,6 +377,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               if (run !== runRef.current) return;
               if (healed) {
                 setCoach(healed);
+                lastStatusRef.current = healed.is_active ? 'signedIn' : 'pending';
                 setStatus(healed.is_active ? 'signedIn' : 'pending');
                 return;
               }
@@ -377,17 +386,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               clearPendingCoachProfile();
             }
           }
+          lastStatusRef.current = 'completeCoachProfile';
           setStatus('completeCoachProfile');
           return;
         }
       }
+      lastStatusRef.current = 'signedIn';
       setStatus('signedIn');
     } catch (err) {
       // A session exists but the profile reads failed (e.g. migrations not
-      // run yet). Don't lock the user out: enter with identity unresolved —
-      // RLS still protects every table server-side.
+      // run yet, network blip). Don't lock the user out, but also don't
+      // promote blindly to 'signedIn': that used to route a pending coach
+      // re-checking approval into the coach panel on the stale inactive
+      // row, and a first-boot failure into the athlete shell with no
+      // identity at all (App.tsx: signedIn + null identities → Shell).
+      // Restore the last resolved status instead; with none (first boot),
+      // fall back to the gate, where signing in again retries the reads.
+      // RLS still protects every table server-side either way.
       console.error('[auth] bootstrap failed', err);
-      if (run === runRef.current) setStatus('signedIn');
+      if (run === runRef.current) setStatus(lastStatusRef.current ?? 'signedOut');
     }
   }, []);
 
