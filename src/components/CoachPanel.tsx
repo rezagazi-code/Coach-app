@@ -338,6 +338,12 @@ export default function CoachPanel() {
   // with the stale draft (the old `{...draftsNext, ...prev}` merge kept
   // the previous draft wholesale for every athlete).
   const plateDirty = useRef<Set<string>>(new Set());
+  // Same guard for the coach note (see the plateDirty comment): typing
+  // marks the athlete dirty, a persisted save clears it. Without this,
+  // the seed-once merge below pinned the first-loaded note forever — a
+  // note changed from another session never appeared here, and a later
+  // save from here overwrote that session's change with the stale draft.
+  const noteDirty = useRef<Set<string>>(new Set());
   // Guards the openDetail async fetch: an earlier card's response must not
   // overwrite the answers/flags of a card opened afterwards (coach taps A,
   // goes back, taps B — A's response resolving later would show A's
@@ -475,14 +481,25 @@ export default function CoachPanel() {
         });
         setOverFlags(overNext);
       })();
-      // Seed note drafts once per athlete: the program's saved note wins,
-      // then the locally-kept note. Never overwrite an in-progress draft.
+      // Coach-note drafts: a non-dirty athlete takes the freshly loaded
+      // program note when it is non-empty (server wins, mirroring the
+      // plate merge above), so a note changed from another session
+      // appears here; only an unsaved in-progress edit keeps the
+      // previous draft. An empty server note does NOT wipe the draft:
+      // every resubmission creates a fresh program row with
+      // coach_notes='' (supabase.ts), so falling back to the locally-kept
+      // note — then the previous draft — carries the standing note
+      // (weaknesses/limitations) across resubmissions instead of silently
+      // blanking it, and is the only store until a program row exists.
       setDrafts((prev) => {
         const next = { ...prev };
         for (const c of withPrograms) {
-          if (!(c.athlete.id in next)) {
-            next[c.athlete.id] = c.program?.coach_notes || localNotes.current[c.athlete.id] || '';
-          }
+          if (noteDirty.current.has(c.athlete.id)) continue;
+          next[c.athlete.id] =
+            c.program?.coach_notes ||
+            localNotes.current[c.athlete.id] ||
+            prev[c.athlete.id] ||
+            '';
         }
         return next;
       });
@@ -605,6 +622,8 @@ export default function CoachPanel() {
       localNotes.current = { ...localNotes.current, [athleteId]: text };
       writeLocalNotes(localNotes.current);
       if (!isSupabaseConfigured) {
+        // Demo mode: the local copy IS the store, so the save persisted.
+        noteDirty.current.delete(athleteId);
         showToast(t('cp.noteSaved'));
       } else {
         try {
@@ -616,6 +635,11 @@ export default function CoachPanel() {
           const program = (await latestProgramFor(athleteId).catch(() => null)) ?? card.program;
           if (program) {
             await updateProgramCoachNotes(program.id, text);
+            // Clear dirty only on a persisted save (plateDirty rule): a
+            // failed save — or a local-only save with no program row yet
+            // — keeps the draft protected from foreground re-checks until
+            // the coach retries and it actually lands on the server.
+            noteDirty.current.delete(athleteId);
             showToast(t('cp.noteSaved'));
           } else {
             showToast(t('cp.noteLocalOnly'));
@@ -661,6 +685,7 @@ export default function CoachPanel() {
         delete localPlates.current[athleteId];
         writeLocalPlates(localPlates.current);
         plateDirty.current.delete(athleteId);
+        noteDirty.current.delete(athleteId);
         setDrafts((prev) => {
           const next = { ...prev };
           delete next[athleteId];
@@ -1016,9 +1041,10 @@ export default function CoachPanel() {
                   rows={3}
                   value={drafts[c.athlete.id] ?? ''}
                   placeholder={t('cp.notePlaceholder')}
-                  onChange={(e) =>
-                    setDrafts((prev) => ({ ...prev, [c.athlete.id]: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    noteDirty.current.add(c.athlete.id);
+                    setDrafts((prev) => ({ ...prev, [c.athlete.id]: e.target.value }));
+                  }}
                 />
                 <span className="auth-hint">{t('cp.noteHint')}</span>
               </label>
