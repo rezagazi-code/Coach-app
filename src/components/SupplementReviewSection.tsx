@@ -105,9 +105,18 @@ export default function SupplementReviewSection({
   const [review, setReview] = useState<SupplementReview | null>(null);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
-  // A note the coach typed but has not saved yet must survive a reload;
-  // without this, re-expanding after a trainee resubmission would wipe it.
+  // A note the coach typed but has not saved yet must survive a reload
+  // for the SAME response; without this, re-expanding would wipe it with
+  // the saved note. It must NOT survive a response change (see
+  // noteResponseRef): text typed for superseded answers is stale for the
+  // fresh draft, same as the previous decision's saved note.
   const noteDirtyRef = useRef(false);
+  // The response the current note text belongs to. A note belongs to
+  // exactly one screening: when the latest response changes (trainee
+  // resubmission), the fresh decision starts with an empty note — the
+  // previous decision's saved note, and any text typed for the old draft,
+  // must not ride the new decision if the coach approves without editing.
+  const noteResponseRef = useRef<string | null>(null);
   // Stale-load guard (same trap class as the CoachPanel queue fix): a
   // foreground silent load whose fetch started BEFORE the coach's decision
   // must not overwrite the decided review when it resolves late — without
@@ -155,7 +164,27 @@ export default function SupplementReviewSection({
         if (loadSeq !== loadSeqRef.current) return;
         setResponse(resp);
         setReview(rev);
-        if (!noteDirtyRef.current) setNote(rev?.coach_note ?? '');
+        // A decision only stands for its own response (decidedForCurrent
+        // below): when the latest response is NEWER than the loaded review,
+        // the review's saved note belongs to the superseded decision, not
+        // to this draft. Clearing the dirty flag on decide() (1c2a830) did
+        // not fix that ride: with dirty cleared, this load restored the
+        // old note verbatim; with dirty set, the stale note state survived
+        // instead — both paths pre-filled the fresh decision with it.
+        // So a response change resets the note outright, typed text
+        // included (it described the old answers). Same-response reloads
+        // keep the existing dirty-guard behaviour.
+        const noteForCurrent = !resp || !rev || rev.response_id === resp.id;
+        if (!noteForCurrent && resp) {
+          if (noteResponseRef.current !== resp.id) {
+            setNote('');
+            noteDirtyRef.current = false;
+          }
+          noteResponseRef.current = resp.id;
+        } else {
+          if (!noteDirtyRef.current) setNote(rev?.coach_note ?? '');
+          if (resp) noteResponseRef.current = resp.id;
+        }
       }
     } finally {
       if (!silent) setLoading(false);
