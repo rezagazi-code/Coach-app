@@ -439,9 +439,17 @@ export default function CoachPanel() {
               ]);
               const items = targets?.food_items ?? [];
               const rx = targets?.prescriptions ?? [];
+              // Server copy wins when the fetch succeeded: the local copy
+              // is only the offline/fallback store (mirroring the
+              // supplement-review pattern), so preferring it here pinned
+              // the last plate saved ON THIS DEVICE and hid a plate
+              // changed from another session — and a later save from
+              // here then overwrote that other session's change with the
+              // stale local copy. The dirty-set merge below still
+              // protects genuinely unsaved edits.
               draftsNext[c.athlete.id] = {
-                items: localPlates.current[c.athlete.id]?.items ?? items,
-                rx: localPlates.current[c.athlete.id]?.rx ?? rx,
+                items: targets ? items : (localPlates.current[c.athlete.id]?.items ?? items),
+                rx: targets ? rx : (localPlates.current[c.athlete.id]?.rx ?? rx),
               };
               if (log) {
                 const overKeys = new Set(log.items.filter((i) => i.over).map((i) => i.key));
