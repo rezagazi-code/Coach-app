@@ -612,8 +612,15 @@ export default function CoachPanel() {
       // Record the program rows seen on this load (failed program fetches
       // resolve to null and leave the stored row untouched, so a transient
       // failure can never fake a resubmission). Persisted only on change.
+      // Dirty athletes are skipped here, like in the carry bookkeeping
+      // below: advancing the stored row under an in-progress edit would
+      // make the NEXT load (after a remount clears the dirty flag)
+      // misread the fresh row as a seen row — and its empty server note
+      // as a deliberate clear, blanking the draft and dropping the
+      // standing local note that the fresh row was supposed to carry.
       let noteProgChanged = false;
       for (const c of withPrograms) {
+        if (noteDirty.current.has(c.athlete.id)) continue;
         if (c.program && localNotePrograms.current[c.athlete.id] !== c.program.id) {
           localNotePrograms.current[c.athlete.id] = c.program.id;
           noteProgChanged = true;
