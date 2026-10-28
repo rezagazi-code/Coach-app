@@ -62,6 +62,11 @@ interface AthleteCard {
 }
 
 const NOTES_KEY = 'km.coachNotes.v1';
+// Program row each athlete's note was last seen on. The empty-server-note
+// carry below must NOT fire when the program row is unchanged: same row +
+// empty server note means the coach deliberately cleared the note from
+// another session, not a resubmission (which mints a fresh row).
+const NOTE_PROG_KEY = 'km.coachNoteProg.v1';
 
 // ---------------------------------------------------------------------------
 // «بشقاب روزانه» — coach-side nutrition program editor (per athlete).
@@ -159,6 +164,23 @@ function writeLocalNotes(notes: Record<string, string>) {
     localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
   } catch {
     /* storage unavailable — note stays in memory this session */
+  }
+}
+
+function readLocalNotePrograms(): Record<string, string> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(NOTE_PROG_KEY) ?? '{}') as Record<string, string>;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeLocalNotePrograms(progs: Record<string, string>) {
+  try {
+    localStorage.setItem(NOTE_PROG_KEY, JSON.stringify(progs));
+  } catch {
+    /* storage unavailable — program tracking stays in memory this session */
   }
 }
 
@@ -319,6 +341,9 @@ export default function CoachPanel() {
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
   const localNotes = useRef<Record<string, string>>(readLocalNotes());
+  // Last program row id seen per athlete (see NOTE_PROG_KEY): persisted so
+  // a note cleared from another session stays cleared across restarts.
+  const localNotePrograms = useRef<Record<string, string>>(readLocalNotePrograms());
   // «بشقاب روزانه» nutrition program state (per athlete).
   const [plateOpen, setPlateOpen] = useState<Record<string, boolean>>({});
   const [plateDrafts, setPlateDrafts] = useState<Record<string, PlateDraft>>({});
@@ -519,18 +544,42 @@ export default function CoachPanel() {
       // note — then the previous draft — carries the standing note
       // (weaknesses/limitations) across resubmissions instead of silently
       // blanking it, and is the only store until a program row exists.
+      // ONE exception: the SAME program row seen before with an empty
+      // server note means the coach deliberately cleared the note from
+      // another session — the carry chain would otherwise resurrect it
+      // from this device's local copy, and a later save here would undo
+      // that session's clear (the plate trap just fixed). The snapshot
+      // below is read inside the updater so the ref update after it
+      // cannot make every row look "unchanged" (updaters must stay pure).
+      const prevNotePrograms = { ...localNotePrograms.current };
       setDrafts((prev) => {
         const next = { ...prev };
         for (const c of withPrograms) {
           if (noteDirty.current.has(c.athlete.id)) continue;
-          next[c.athlete.id] =
-            c.program?.coach_notes ||
-            localNotes.current[c.athlete.id] ||
-            prev[c.athlete.id] ||
-            '';
+          const prog = c.program;
+          if (prog && prevNotePrograms[c.athlete.id] === prog.id && !prog.coach_notes) {
+            next[c.athlete.id] = '';
+          } else {
+            next[c.athlete.id] =
+              prog?.coach_notes ||
+              localNotes.current[c.athlete.id] ||
+              prev[c.athlete.id] ||
+              '';
+          }
         }
         return next;
       });
+      // Record the program rows seen on this load (failed program fetches
+      // resolve to null and leave the stored row untouched, so a transient
+      // failure can never fake a resubmission). Persisted only on change.
+      let noteProgChanged = false;
+      for (const c of withPrograms) {
+        if (c.program && localNotePrograms.current[c.athlete.id] !== c.program.id) {
+          localNotePrograms.current[c.athlete.id] = c.program.id;
+          noteProgChanged = true;
+        }
+      }
+      if (noteProgChanged) writeLocalNotePrograms(localNotePrograms.current);
     } catch (err) {
       console.error('[coach-panel] load failed', err);
       // A stale load's failure must not paint an error banner over the
@@ -710,6 +759,8 @@ export default function CoachPanel() {
         // forever as dead entries. Drop them and rewrite both keys.
         delete localNotes.current[athleteId];
         writeLocalNotes(localNotes.current);
+        delete localNotePrograms.current[athleteId];
+        writeLocalNotePrograms(localNotePrograms.current);
         delete localPlates.current[athleteId];
         writeLocalPlates(localPlates.current);
         plateDirty.current.delete(athleteId);
