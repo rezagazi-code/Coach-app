@@ -436,13 +436,24 @@ export default function CoachPanel() {
         const seq = loadSeq;
         const draftsNext: Record<string, PlateDraft> = {};
         const overNext: Record<string, string[]> = {};
+        // Athletes whose targets+log fetches BOTH succeeded. A failed
+        // fetch must be distinguishable from "no row" (null): the old
+        // catch-to-null collapsed them, so a transient failure blanked
+        // the editor with the local fallback — empty on a device that
+        // never saved this plate — and a save from that blank editor
+        // then wiped the server plate with an empty upsert. The same
+        // failure also cleared a real over-eating flag (no log entry in
+        // overNext meant wholesale replace dropped it). Unresolved
+        // athletes now keep their previous draft and flag instead.
+        const resolvedIds = new Set<string>();
         await Promise.all(
           withPrograms.map(async (c) => {
             try {
               const [targets, log] = await Promise.all([
-                latestNutritionTargetsFor(c.athlete.id).catch(() => null),
-                latestNutritionLogFor(c.athlete.id, 3).catch(() => null),
+                latestNutritionTargetsFor(c.athlete.id),
+                latestNutritionLogFor(c.athlete.id, 3),
               ]);
+              resolvedIds.add(c.athlete.id);
               const items = targets?.food_items ?? [];
               const rx = targets?.prescriptions ?? [];
               // Server copy wins when the fetch succeeded: the local copy
@@ -474,12 +485,29 @@ export default function CoachPanel() {
           const next = { ...prev, ...draftsNext };
           // Only an unsaved in-progress edit keeps the previous draft;
           // every other athlete takes the freshly fetched server copy.
+          // Unresolved athletes are absent from draftsNext, so their
+          // previous draft survives a failed fetch untouched.
           for (const id of plateDirty.current) {
             if (id in prev) next[id] = prev[id];
           }
           return next;
         });
-        setOverFlags(overNext);
+        setOverFlags((prev) => {
+          const next = { ...prev };
+          // Only resolved athletes update their flag: a failed fetch
+          // preserves the last good flag instead of clearing a real
+          // over-eating alert. Athletes no longer in the list (deleted)
+          // drop theirs, keeping the old wholesale replace's cleanup.
+          for (const id of resolvedIds) {
+            if (id in overNext) next[id] = overNext[id];
+            else delete next[id];
+          }
+          const liveIds = new Set(withPrograms.map((c) => c.athlete.id));
+          for (const id of Object.keys(next)) {
+            if (!liveIds.has(id)) delete next[id];
+          }
+          return next;
+        });
       })();
       // Coach-note drafts: a non-dirty athlete takes the freshly loaded
       // program note when it is non-empty (server wins, mirroring the
