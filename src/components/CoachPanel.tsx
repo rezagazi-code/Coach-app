@@ -67,6 +67,12 @@ const NOTES_KEY = 'km.coachNotes.v1';
 // empty server note means the coach deliberately cleared the note from
 // another session, not a resubmission (which mints a fresh row).
 const NOTE_PROG_KEY = 'km.coachNoteProg.v1';
+// Program row that already received a standing-note carry (see the merge
+// in load()): a fresh row after a resubmission shows the carried note
+// while its server note is still '' — without this marker the next load
+// of the same row would mistake the unsaved carry for a deliberate clear
+// and blank the editor on every foreground re-check.
+const NOTE_CARRIED_KEY = 'km.coachNoteCarried.v1';
 
 // ---------------------------------------------------------------------------
 // «بشقاب روزانه» — coach-side nutrition program editor (per athlete).
@@ -181,6 +187,26 @@ function writeLocalNotePrograms(progs: Record<string, string>) {
     localStorage.setItem(NOTE_PROG_KEY, JSON.stringify(progs));
   } catch {
     /* storage unavailable — program tracking stays in memory this session */
+  }
+}
+
+function readLocalNoteCarried(): Record<string, string> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(NOTE_CARRIED_KEY) ?? '{}') as Record<
+      string,
+      string
+    >;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeLocalNoteCarried(carried: Record<string, string>) {
+  try {
+    localStorage.setItem(NOTE_CARRIED_KEY, JSON.stringify(carried));
+  } catch {
+    /* storage unavailable — carry tracking stays in memory this session */
   }
 }
 
@@ -344,6 +370,7 @@ export default function CoachPanel() {
   // Last program row id seen per athlete (see NOTE_PROG_KEY): persisted so
   // a note cleared from another session stays cleared across restarts.
   const localNotePrograms = useRef<Record<string, string>>(readLocalNotePrograms());
+  const localNoteCarried = useRef<Record<string, string>>(readLocalNoteCarried());
   // «بشقاب روزانه» nutrition program state (per athlete).
   const [plateOpen, setPlateOpen] = useState<Record<string, boolean>>({});
   const [plateDrafts, setPlateDrafts] = useState<Record<string, PlateDraft>>({});
@@ -548,17 +575,30 @@ export default function CoachPanel() {
       // server note means the coach deliberately cleared the note from
       // another session — the carry chain would otherwise resurrect it
       // from this device's local copy, and a later save here would undo
-      // that session's clear (the plate trap just fixed). The snapshot
-      // below is read inside the updater so the ref update after it
-      // cannot make every row look "unchanged" (updaters must stay pure).
+      // that session's clear (the plate trap just fixed). Exception to
+      // the exception: a row that already received a carry (marked in
+      // km.coachNoteCarried.v1) keeps showing it — its empty server note
+      // is the carry-not-yet-saved, not a clear. The snapshots below are
+      // read inside the updater so the ref updates after it cannot make
+      // every row look "unchanged" (updaters must stay pure).
       const prevNotePrograms = { ...localNotePrograms.current };
+      const prevNoteCarried = { ...localNoteCarried.current };
       setDrafts((prev) => {
         const next = { ...prev };
         for (const c of withPrograms) {
           if (noteDirty.current.has(c.athlete.id)) continue;
           const prog = c.program;
           if (prog && prevNotePrograms[c.athlete.id] === prog.id && !prog.coach_notes) {
-            next[c.athlete.id] = '';
+            // Same row + empty server note: a deliberate clear — UNLESS
+            // this row already received a standing-note carry (fresh row
+            // after a resubmission whose carried note was never saved):
+            // then the empty server note is the carry-not-yet-saved, not
+            // a clear, and blanking here would make the carried note
+            // vanish on the next foreground re-check.
+            next[c.athlete.id] =
+              prevNoteCarried[c.athlete.id] === prog.id
+                ? localNotes.current[c.athlete.id] || prev[c.athlete.id] || ''
+                : '';
           } else {
             next[c.athlete.id] =
               prog?.coach_notes ||
@@ -580,6 +620,42 @@ export default function CoachPanel() {
         }
       }
       if (noteProgChanged) writeLocalNotePrograms(localNotePrograms.current);
+      // Carry-marker + observed-clear bookkeeping (see the merge above).
+      // Dirty athletes are skipped throughout: their draft is protected
+      // and no marker/local change may run under an in-progress edit.
+      let carriedChanged = false;
+      let notesChanged = false;
+      for (const c of withPrograms) {
+        const prog = c.program;
+        if (!prog || noteDirty.current.has(c.athlete.id)) continue;
+        if (prog.coach_notes) {
+          // Server note present again: the marker is stale, server governs.
+          if (localNoteCarried.current[c.athlete.id]) {
+            delete localNoteCarried.current[c.athlete.id];
+            carriedChanged = true;
+          }
+        } else if (prevNotePrograms[c.athlete.id] === prog.id) {
+          // Same row + empty server note with NO carry marker: a
+          // deliberate clear observed — drop the local copy too, or the
+          // next resubmission's fresh row would resurrect the cleared
+          // note from it (the load-path version of the a1d9d02
+          // save-path trap). No local entry means nothing to drop.
+          if (prevNoteCarried[c.athlete.id] !== prog.id && localNotes.current[c.athlete.id]) {
+            delete localNotes.current[c.athlete.id];
+            notesChanged = true;
+          }
+        } else if (localNotes.current[c.athlete.id]) {
+          // Fresh row (resubmission) with a standing local note: the
+          // merge above carried it — mark the row so the carry survives
+          // later loads instead of blanking as a phantom clear.
+          if (localNoteCarried.current[c.athlete.id] !== prog.id) {
+            localNoteCarried.current[c.athlete.id] = prog.id;
+            carriedChanged = true;
+          }
+        }
+      }
+      if (carriedChanged) writeLocalNoteCarried(localNoteCarried.current);
+      if (notesChanged) writeLocalNotes(localNotes.current);
     } catch (err) {
       console.error('[coach-panel] load failed', err);
       // A stale load's failure must not paint an error banner over the
@@ -723,6 +799,13 @@ export default function CoachPanel() {
               localNotePrograms.current = { ...localNotePrograms.current, [athleteId]: program.id };
               writeLocalNotePrograms(localNotePrograms.current);
             }
+            // A persisted save makes the carry marker stale: the server
+            // now holds the saved text, so later loads take the server
+            // branch and must not keep carrying the old local copy.
+            if (localNoteCarried.current[athleteId]) {
+              delete localNoteCarried.current[athleteId];
+              writeLocalNoteCarried(localNoteCarried.current);
+            }
             // Clear dirty only on a persisted save (plateDirty rule): a
             // failed save — or a local-only save with no program row yet
             // — keeps the draft protected from foreground re-checks until
@@ -772,6 +855,8 @@ export default function CoachPanel() {
         writeLocalNotes(localNotes.current);
         delete localNotePrograms.current[athleteId];
         writeLocalNotePrograms(localNotePrograms.current);
+        delete localNoteCarried.current[athleteId];
+        writeLocalNoteCarried(localNoteCarried.current);
         delete localPlates.current[athleteId];
         writeLocalPlates(localPlates.current);
         plateDirty.current.delete(athleteId);
