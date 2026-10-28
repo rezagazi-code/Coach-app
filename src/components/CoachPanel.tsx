@@ -712,6 +712,17 @@ export default function CoachPanel() {
           const program = (await latestProgramFor(athleteId).catch(() => null)) ?? card.program;
           if (program) {
             await updateProgramCoachNotes(program.id, text);
+            // Record the row just saved to (same guard as the load path
+            // above): without this, a save landing on a NEWER row than
+            // the panel last loaded leaves localNotePrograms pointing
+            // at the old row — and a note cleared from another session
+            // on the new row would then resurrect from the local copy
+            // on the next load, which treats the row as "new" and
+            // carries the standing note instead of blanking it.
+            if (localNotePrograms.current[athleteId] !== program.id) {
+              localNotePrograms.current = { ...localNotePrograms.current, [athleteId]: program.id };
+              writeLocalNotePrograms(localNotePrograms.current);
+            }
             // Clear dirty only on a persisted save (plateDirty rule): a
             // failed save — or a local-only save with no program row yet
             // — keeps the draft protected from foreground re-checks until
