@@ -58,7 +58,14 @@ interface BestEffort {
   reps: number;
 }
 
-const prStorageKey = (exercise: string) => `km.pr.v1.${exercise}`;
+// PR bests are per-athlete: a date-less, athlete-less key let athlete Y
+// inherit athlete X's bests on a shared phone — and the program logger
+// seeds its start weight from that best, so Y's first session opened at
+// X's weights. Demo mode (no athlete id) keeps the legacy unscoped key.
+const prStorageKey = (exercise: string) => {
+  const id = getCurrentAthleteId();
+  return id ? `km.pr.v1.${id}.${exercise}` : `km.pr.v1.${exercise}`;
+};
 
 function loadBest(exercise: string): BestEffort | null {
   try {

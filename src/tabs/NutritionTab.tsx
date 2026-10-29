@@ -46,9 +46,21 @@ import {
 } from '../lib/supplementDraft';
 
 const STEP: Record<NutritionFoodItem['unit'], number> = { g: 25, pcs: 1, cup: 0.5, ml: 100 };
-const PLATE_LOCAL = 'km.plate.v1'; // demo-mode / offline per-day cache
-const PLATE_LOCAL_RX = 'km.plate.v1.rx'; // same, for «نسخه پزشک» checkboxes
-const BANK_LOCAL = 'km.bank.v1'; // same, for «بانک غذاها» tap counts
+// Device-local per-day caches MUST be scoped to the athlete. The queue
+// and pending-submission guards already treat the device as shared, but
+// these three keys were date-only — so athlete Y logging in after X on
+// the same phone inherited X's plate amounts, bank taps and rx ticks,
+// and «ثبت روز» then saved them under Y's athlete_id (and the server-log
+// seed was skipped, because a today cache existed). Demo mode has no
+// athlete id and keeps the legacy unscoped keys. Legacy unscoped caches
+// are orphaned, never adopted: their owner is unknowable, so adopting
+// them would reintroduce the leak for one login.
+const plateKey = (athleteId: string | null) =>
+  athleteId ? `km.plate.v1.${athleteId}` : 'km.plate.v1';
+const plateRxKey = (athleteId: string | null) =>
+  athleteId ? `km.plate.v1.${athleteId}.rx` : 'km.plate.v1.rx';
+const bankKey = (athleteId: string | null) =>
+  athleteId ? `km.bank.v1.${athleteId}` : 'km.bank.v1';
 
 function demoItems(): NutritionFoodItem[] {
   return [
@@ -275,6 +287,10 @@ export default function NutritionTab() {
 
   const athleteId = auth.athlete?.id ?? getCurrentAthleteId();
   const coachId = auth.athlete?.coach_id ?? null;
+  // Scoped cache keys for THIS athlete (see the key helpers above).
+  const plateLocal = plateKey(athleteId);
+  const plateRxLocal = plateRxKey(athleteId);
+  const bankLocal = bankKey(athleteId);
 
   const flash = useCallback((msg: string) => {
     setToast(null);
@@ -282,20 +298,22 @@ export default function NutritionTab() {
     window.setTimeout(() => setToast(null), 2200);
   }, []);
 
-  // Restore today's local amounts (demo mode / offline echo).
+  // Restore today's local amounts (demo mode / offline echo). Keyed to
+  // this athlete (see above): on an identity change the new athlete's
+  // own cache loads, never the previous device user's.
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(PLATE_LOCAL);
+      const raw = localStorage.getItem(plateLocal);
       if (raw) {
         const parsed = JSON.parse(raw) as { date?: string; logged?: Record<string, number> };
         if (parsed?.date === localDateStr() && parsed.logged) setLogged(parsed.logged);
       }
-      const rawRx = localStorage.getItem(PLATE_LOCAL_RX);
+      const rawRx = localStorage.getItem(plateRxLocal);
       if (rawRx) {
         const parsedRx = JSON.parse(rawRx) as { date?: string; rxDone?: Record<string, boolean> };
         if (parsedRx?.date === localDateStr() && parsedRx.rxDone) setRxDone(parsedRx.rxDone);
       }
-      const rawBank = localStorage.getItem(BANK_LOCAL);
+      const rawBank = localStorage.getItem(bankLocal);
       if (rawBank) {
         const parsedBank = JSON.parse(rawBank) as { date?: string; taps?: Record<string, number> };
         if (parsedBank?.date === localDateStr() && parsedBank.taps) setBankTaps(parsedBank.taps);
@@ -303,7 +321,7 @@ export default function NutritionTab() {
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [plateLocal, plateRxLocal, bankLocal]);
 
   useEffect(() => {
     let alive = true;
@@ -380,9 +398,9 @@ export default function NutritionTab() {
             // like the pre-0.2.35 false-«synced» trap (a server log for
             // today can exist from another device while this device holds
             // unsaved taps). No-rx counts as seeded: nothing to show.
-            const plateCached = hasTodayCache(PLATE_LOCAL);
-            const bankCached = hasTodayCache(BANK_LOCAL);
-            const rxCached = hasTodayCache(PLATE_LOCAL_RX);
+            const plateCached = hasTodayCache(plateLocal);
+            const bankCached = hasTodayCache(bankLocal);
+            const rxCached = hasTodayCache(plateRxLocal);
             if (!plateCached) {
               const seeded: Record<string, number> = {};
               for (const it of log.items) {
@@ -467,7 +485,7 @@ export default function NutritionTab() {
 
   const persistLocal = (next: Record<string, number>) => {
     try {
-      localStorage.setItem(PLATE_LOCAL, JSON.stringify({ date: localDateStr(), logged: next }));
+      localStorage.setItem(plateLocal, JSON.stringify({ date: localDateStr(), logged: next }));
     } catch {
       /* ignore */
     }
@@ -477,7 +495,7 @@ export default function NutritionTab() {
   // races the amount steppers (same functional-update persist pattern).
   const persistRxLocal = (next: Record<string, boolean>) => {
     try {
-      localStorage.setItem(PLATE_LOCAL_RX, JSON.stringify({ date: localDateStr(), rxDone: next }));
+      localStorage.setItem(plateRxLocal, JSON.stringify({ date: localDateStr(), rxDone: next }));
     } catch {
       /* ignore */
     }
@@ -486,7 +504,7 @@ export default function NutritionTab() {
   // «بانک غذاها» tap counts — same per-day local cache discipline.
   const persistBank = (next: Record<string, number>) => {
     try {
-      localStorage.setItem(BANK_LOCAL, JSON.stringify({ date: localDateStr(), taps: next }));
+      localStorage.setItem(bankLocal, JSON.stringify({ date: localDateStr(), taps: next }));
     } catch {
       /* ignore */
     }

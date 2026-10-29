@@ -23,10 +23,18 @@ const HABIT_XP = 2;
 
 const HABIT_KEYS: Habit['key'][] = ['water', 'sleep', 'steps', 'mobility'];
 
+/** Per-day cache key, scoped to the athlete (same shared-device leak as
+ *  NutritionTab's plate caches: a date-only key let athlete Y inherit
+ *  athlete X's done habits on the same phone). Demo mode (no athlete id)
+ *  keeps the legacy unscoped key; legacy caches are never adopted for a
+ *  signed-in athlete, since their owner is unknowable. */
+const checklistKey = (athleteId: string | null) =>
+  athleteId ? `km.checklist.v1.${athleteId}` : 'km.checklist.v1';
+
 /** Today's persisted done-set, or null when no cache exists for today. */
-function readStoredDone(): Set<string> | null {
+function readStoredDone(key: string): Set<string> | null {
   try {
-    const raw = localStorage.getItem(CHECKLIST_LOCAL);
+    const raw = localStorage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { date?: string; done?: string[] };
     if (parsed?.date === localDateStr() && Array.isArray(parsed.done)) return new Set(parsed.done);
@@ -36,19 +44,16 @@ function readStoredDone(): Set<string> | null {
   return null;
 }
 
-function persistDone(done: string[]): void {
+function persistDone(key: string, done: string[]): void {
   try {
-    localStorage.setItem(CHECKLIST_LOCAL, JSON.stringify({ date: localDateStr(), done }));
+    localStorage.setItem(key, JSON.stringify({ date: localDateStr(), done }));
   } catch {
     /* ignore */
   }
 }
 
-// Per-day cache key (same discipline as NutritionTab's per-day caches).
-const CHECKLIST_LOCAL = 'km.checklist.v1';
-
 function initialHabits(): Habit[] {
-  const stored = readStoredDone();
+  const stored = readStoredDone(checklistKey(getCurrentAthleteId()));
   if (stored) return HABIT_KEYS.map((key) => ({ key, done: stored.has(key) }));
   return [
     { key: 'water', done: false },
@@ -78,7 +83,7 @@ export default function ChecklistTab() {
       // Persist the full done-set (idempotent write — safe under
       // double-invoked updaters): a restart must restore exactly this,
       // so a completed habit never shows unchecked again.
-      persistDone(next.filter((h) => h.done).map((h) => h.key));
+      persistDone(checklistKey(getCurrentAthleteId()), next.filter((h) => h.done).map((h) => h.key));
       return next;
     });
     if (turningOn) {
