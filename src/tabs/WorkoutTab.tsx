@@ -82,6 +82,72 @@ function saveBest(exercise: string, best: BestEffort) {
   }
 }
 
+// Per-exercise-day workout persistence (program mode only — the demo
+// logger must stay in-memory only, see LoggerSpec.demo).
+// Without this, leaving an exercise logger (back to the list) and
+// re-opening it started a FRESH session: new session id, all sets
+// undone, and re-logging created a second workout_sessions row plus
+// duplicate logged_sets (set UUIDs derive from the session id) in the
+// coach's records. The stored state resumes the same session id and
+// the same done-sets, so a re-open can only continue, never duplicate.
+const WORKOUT_LOCAL_PREFIX = 'km.workout.v1.';
+
+interface StoredWorkoutState {
+  date: string;
+  sessionId: string;
+  startedAtMs: number;
+  sets: SetLog[];
+}
+
+function workoutStateKey(persistKey: string): string {
+  return `${WORKOUT_LOCAL_PREFIX}${persistKey}`;
+}
+
+function loadWorkoutState(persistKey: string, count: number): StoredWorkoutState | null {
+  try {
+    const raw = localStorage.getItem(workoutStateKey(persistKey));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<StoredWorkoutState>;
+    if (parsed.date !== localDateStr()) return null;
+    if (typeof parsed.sessionId !== 'string' || !parsed.sessionId) return null;
+    if (typeof parsed.startedAtMs !== 'number') return null;
+    if (!Array.isArray(parsed.sets) || parsed.sets.length !== count) return null;
+    const sets: SetLog[] = [];
+    for (const s of parsed.sets) {
+      const o = s as Partial<SetLog>;
+      if (typeof o.weight !== 'number' || typeof o.reps !== 'number' || typeof o.done !== 'boolean') {
+        return null;
+      }
+      sets.push({ weight: o.weight, reps: o.reps, done: o.done, rpe: typeof o.rpe === 'number' ? o.rpe : null });
+    }
+    return { date: parsed.date, sessionId: parsed.sessionId, startedAtMs: parsed.startedAtMs, sets };
+  } catch {
+    return null;
+  }
+}
+
+function saveWorkoutState(persistKey: string, state: StoredWorkoutState): void {
+  try {
+    localStorage.setItem(workoutStateKey(persistKey), JSON.stringify(state));
+    // Prune other days' in-progress sessions: a new day starts a fresh
+    // session by design (the key carries no date), so yesterday's state
+    // is dead weight, not resumable data.
+    const ownKey = workoutStateKey(persistKey);
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(WORKOUT_LOCAL_PREFIX) || k === ownKey) continue;
+      try {
+        const other = JSON.parse(localStorage.getItem(k) ?? '') as Partial<StoredWorkoutState>;
+        if (other?.date !== localDateStr()) localStorage.removeItem(k);
+      } catch {
+        localStorage.removeItem(k);
+      }
+    }
+  } catch {
+    /* storage unavailable — session still works this mount */
+  }
+}
+
 /**
  * Parse a sets spec like "3 sets × 8–10 reps" (setsEn from the
  * questionnaire) into a set count + rep target. Falls back to 3×10 when
@@ -123,6 +189,11 @@ interface LoggerSpec {
   coachId: string | null;
   onBack: (() => void) | null; // program mode: back to the exercise list
   /**
+   * Resume key for program mode (`<programId>:<day>:<exerciseId>`).
+   * Absent for the demo logger: demo sessions must never persist.
+   */
+  persistKey?: string | null;
+  /**
    * Demo (no-program fallback) logger: the athlete tries the logger UI
    * before they have a program. It must NEVER write to the sync queue:
    * the fixture sets (30×12, 32.5×10 pre-logged) are not real workouts,
@@ -135,8 +206,28 @@ interface LoggerSpec {
 
 function SetLogger({ spec }: { spec: LoggerSpec }) {
   const { t, num, lang } = useLang();
-  const [sets, setSets] = useState<SetLog[]>(spec.initialSets);
-  const [active, setActive] = useState(spec.preLogged);
+  // Resume state, read once per mount (see the persistence note above):
+  // a re-opened exercise continues its stored session instead of
+  // starting a duplicate one. Demo loggers never carry a persistKey.
+  const storedOnce = useRef<{ tried: boolean; state: StoredWorkoutState | null }>({
+    tried: false,
+    state: null,
+  });
+  if (!storedOnce.current.tried) {
+    storedOnce.current = {
+      tried: true,
+      state: spec.persistKey ? loadWorkoutState(spec.persistKey, spec.initialSets.length) : null,
+    };
+  }
+  const stored = storedOnce.current.state;
+  const [sets, setSets] = useState<SetLog[]>(() => stored?.sets ?? spec.initialSets);
+  const [active, setActive] = useState(() => {
+    if (stored) {
+      const idx = stored.sets.findIndex((s) => !s.done);
+      return idx === -1 ? 0 : idx;
+    }
+    return spec.preLogged;
+  });
   const [rpe, setRpe] = useState<number | null>(null);
   const [showPR, setShowPR] = useState(false);
   const [feedback, setFeedback] = useState<'easy' | 'ok' | 'hard' | null>(null);
@@ -146,8 +237,17 @@ function SetLogger({ spec }: { spec: LoggerSpec }) {
   // used as the workout_sessions row's id AND client_uuid (upsert-safe).
   // The ref also remembers the session start so the completion write can
   // compute duration_min without re-sending started_at (which would
-  // clobber the true start on the conflict→UPDATE path).
-  const sessionIdRef = useRef<{ id: string; startedAtMs: number } | null>(null);
+  // clobber the true start on the conflict→UPDATE path). A resumed
+  // logger reuses the stored session id + start, so the completion
+  // upsert collapses onto the original row instead of adding a second.
+  const sessionIdRef = useRef<{ id: string; startedAtMs: number } | null>(
+    stored ? { id: stored.sessionId, startedAtMs: stored.startedAtMs } : null
+  );
+
+  const persist = (nextSets: SetLog[], sid: string, startedAtMs: number) => {
+    if (!spec.persistKey) return;
+    saveWorkoutState(spec.persistKey, { date: localDateStr(), sessionId: sid, startedAtMs, sets: nextSets });
+  };
   // The session's calendar day is the DEVICE's local day — the same
   // convention as NutritionTab's log_date (localDateStr). The old
   // toISOString() slice is UTC, so a session logged 00:00–03:30 Tehran
@@ -232,11 +332,12 @@ function SetLogger({ spec }: { spec: LoggerSpec }) {
     if (isPR && !spec.demo) {
       saveBest(spec.exerciseKey, { weight: activeSet.weight, reps: activeSet.reps });
     }
-    setSets((prev) => {
-      const next = [...prev];
-      next[active] = { ...next[active], done: true, rpe };
-      return next;
-    });
+    // Computed from the render closure (same as the advance search
+    // below): the persisted copy must match exactly what the UI shows,
+    // so a re-open restores these done-sets instead of re-logging them
+    // under a fresh session id.
+    const nextSets = sets.map((s, i) => (i === active ? { ...s, done: true, rpe } : s));
+    setSets(nextSets);
     setRpe(null);
     flash(t('w.logged'));
     if (isPR) setShowPR(true);
@@ -255,6 +356,7 @@ function SetLogger({ spec }: { spec: LoggerSpec }) {
       rpe,
       is_pr: isPR,
     });
+    persist(nextSets, sid, sessionIdRef.current?.startedAtMs ?? Date.now());
     }
     // Advance to the next pending set — wrap to the FIRST pending set when
     // the logged set was the last pending one ahead (out-of-order logging).
@@ -547,6 +649,9 @@ function ProgramSessionView({
       programId: program.id,
       coachId: program.coach_id,
       onBack: () => setOpenId(null),
+      // Day-scoped: the same exercise on another training day is a
+      // different session, and a new program id starts fresh as well.
+      persistKey: `${program.id}:${day.day}:${openEx.id}`,
     };
     return <SetLogger key={openEx.id} spec={spec} />;
   }
