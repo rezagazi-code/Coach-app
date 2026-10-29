@@ -1144,7 +1144,13 @@ const FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
 function faNum(n){ if(typeof LANG !== "undefined" && LANG === "en") return String(n); return String(n).replace(/[0-9]/g, d => FA_DIGITS[d]); }
 function parseNum(v){
   if(v == null) return NaN;
-  const s = String(v).replace(/[۰-۹]/g, d => FA_DIGITS.indexOf(d)).replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(",", ".");
+  // Same normalization as CoachPanel's faDigitsToLatin: FA/Arabic digits
+  // → Latin, Persian decimal separator ٫ → '.', thousands separator ٬
+  // dropped. Without the ٫ step, parseFloat('75٫5') silently truncates to
+  // 75 (a typed 75.5kg becomes 75kg in the BMI/flags) — the same silent
+  // separator family as the PadelPro '500,000' and plate-target '1,000'
+  // bugs. The ASCII ',' → '.' step is the FA decimal comma.
+  const s = String(v).replace(/[۰-۹]/g, d => FA_DIGITS.indexOf(d)).replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/٫/g, ".").replace(/٬/g, "").replace(",", ".");
   return parseFloat(s);
 }
 function radioVal(name){ const el = document.querySelector('input[name="'+name+'"]:checked'); return el ? el.value : null; }
