@@ -824,6 +824,22 @@ export default function CoachPanel() {
           }
         } catch (err) {
           console.error('[coach-panel] note save failed', err);
+          // The local copy above is now the ONLY copy of this note, and
+          // noteDirty (in-memory) dies on remount — so a return to the
+          // panel would load same-row + empty server note with no carry
+          // marker and misread it as a deliberate clear from another
+          // session, blanking the draft AND deleting the local copy:
+          // the failed save's note would be unrecoverable, breaking
+          // the "protected until the coach retries" promise. Mark the
+          // row as carried (persisted): the next load then treats the
+          // empty server note as carry-not-yet-saved, keeps showing
+          // the local copy, and never drops it. A later successful
+          // save clears the marker as before; a save to a newer row
+          // is covered by the fresh-row carry branch instead.
+          if (card.program && localNoteCarried.current[athleteId] !== card.program.id) {
+            localNoteCarried.current = { ...localNoteCarried.current, [athleteId]: card.program.id };
+            writeLocalNoteCarried(localNoteCarried.current);
+          }
           showToast(t('cp.actionError'));
         }
       }
