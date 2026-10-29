@@ -65,6 +65,7 @@ export type AuthStatus =
 
 export type AuthErrorCode =
   | 'wrong' // bad credentials
+  | 'badPhone' // phone does not normalize to a plausible E.164 mobile
   | 'taken' // phone/email already registered
   | 'takenSlug' // coach link slug already taken by another coach
   | 'checkEmail' // signup ok but no session yet (email confirmation unexpectedly ON)
@@ -191,6 +192,19 @@ export function normalizePhone(raw: string): string {
   if (p.startsWith('9') && p.length === 10) return `+98${p}`;
   if (p.startsWith('98') && p.length === 12) return `+${p}`;
   return p;
+}
+
+/**
+ * True when the number normalizes to a plausible E.164 mobile (8–15 digits
+ * after '+'). GoTrue never sees an athlete's phone — the synthetic email
+ * is derived from it — so without this check a mistyped number (a short
+ * prefix, letters, a half-typed mobile) silently minted a junk account
+ * whose synthetic identity the athlete could never reproduce at login,
+ * and stored a bogus phone the coach could never call. Sign-in needs no
+ * such check: a bad number there just fails with 'wrong'.
+ */
+export function isValidPhone(raw: string): boolean {
+  return /^\+[1-9]\d{7,14}$/.test(normalizePhone(raw));
 }
 
 /** Domain for synthetic athlete auth identities (phone-as-email,
@@ -504,6 +518,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (input: { name: string; phone: string; password: string }): Promise<AuthResult> => {
       if (!isSupabaseConfigured) return { ok: false, code: 'generic' };
       const phone = normalizePhone(input.phone);
+      if (!isValidPhone(phone)) return { ok: false, code: 'badPhone' };
       // Phone-as-email: the account is an email identity on the synthetic
       // address; the real E.164 number rides in user metadata (and lands
       // in athletes.phone below) so no profile data changes.

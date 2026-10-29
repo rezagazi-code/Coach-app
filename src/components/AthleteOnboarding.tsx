@@ -11,7 +11,7 @@
  */
 import { useState, type FormEvent } from 'react';
 import { useLang } from '../lib/i18n';
-import { useAuth, type AuthErrorCode } from '../lib/auth';
+import { isValidPhone, useAuth, type AuthErrorCode } from '../lib/auth';
 import QuestionnaireTab from '../tabs/QuestionnaireTab';
 
 export default function AthleteOnboarding({ onBack }: { onBack: () => void }) {
@@ -37,6 +37,7 @@ export default function AthleteOnboarding({ onBack }: { onBack: () => void }) {
     const errs: typeof fieldErrs = {};
     if (!name.trim()) errs.name = t('auth.errFieldRequired');
     if (!phone.trim()) errs.phone = t('auth.errFieldRequired');
+    else if (!isValidPhone(phone)) errs.phone = t('auth.errPhoneInvalid');
     if (!password) errs.password = t('auth.errFieldRequired');
     else if (password.length < 8) errs.password = t('auth.errPasswordShort');
     if (!confirm) errs.confirm = t('auth.errFieldRequired');
@@ -52,7 +53,9 @@ export default function AthleteOnboarding({ onBack }: { onBack: () => void }) {
     setBusy(false);
     if (!res.ok) {
       const code: AuthErrorCode | undefined = res.code;
-      if (code === 'taken') setError(t('auth.errTaken'));
+      if (code === 'badPhone')
+        setFieldErrs((prev) => ({ ...prev, phone: t('auth.errPhoneInvalid') }));
+      else if (code === 'taken') setError(t('auth.errTaken'));
       else if (code === 'busy') setError(t('auth.errBusy'));
       else if (code === 'checkEmail') setNotice(t('auth.errCheckEmail'));
       else if (code === 'checkPhone') setNotice(t('auth.errCheckPhone'));
