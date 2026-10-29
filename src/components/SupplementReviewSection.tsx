@@ -152,8 +152,17 @@ export default function SupplementReviewSection({
           created_at: new Date().toISOString(),
         } as QuestionnaireResponse);
       } else {
+        // A failed response fetch must be distinguishable from "no
+        // response yet": the old catch-to-null collapsed them, so a
+        // transient failure blanked the section with «no data» — hiding
+        // a loaded decision and its draft until the next expand — the
+        // same failure-blanking class as the CoachPanel plate fix.
+        let respFailed = false;
         const [resp, rev] = await Promise.all([
-          getAthleteLatestResponse(athleteId).catch(() => null),
+          getAthleteLatestResponse(athleteId).catch(() => {
+            respFailed = true;
+            return null;
+          }),
           getSupplementReview(athleteId)
             .catch(() => null)
             // Fallback: a decision saved locally (migration not run / offline)
@@ -162,6 +171,11 @@ export default function SupplementReviewSection({
         // Stale load: a newer load started, or the coach decided while
         // this fetch was in flight — never overwrite the newer state.
         if (loadSeq !== loadSeqRef.current) return;
+        // Failed fetch preserves the last good state (response, review,
+        // and note) instead of blanking it; the next foreground re-check
+        // retries. A first load with no prior state still shows «no
+        // data», exactly as before.
+        if (respFailed) return;
         setResponse(resp);
         setReview(rev);
         // A decision only stands for its own response (decidedForCurrent
@@ -182,6 +196,19 @@ export default function SupplementReviewSection({
           }
           noteResponseRef.current = resp.id;
         } else {
+          // The mismatch branch above only fires when a review row exists
+          // for the old response — with NO review row yet (rev null), a
+          // resubmission left a dirty note typed for the superseded
+          // answers standing, and it then rode the fresh decision if the
+          // coach approved without editing (the ca29f6a trap, one branch
+          // short). A note belongs to exactly one response: when the
+          // response changed under a dirty note, clear it outright; the
+          // restore below then pulls the current decision's saved note
+          // (or '' when there is none), never the stale typed text.
+          if (resp && noteResponseRef.current && noteResponseRef.current !== resp.id) {
+            setNote('');
+            noteDirtyRef.current = false;
+          }
           if (!noteDirtyRef.current) setNote(rev?.coach_note ?? '');
           if (resp) noteResponseRef.current = resp.id;
         }
