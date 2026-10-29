@@ -112,11 +112,23 @@ export function useAthleteProgramStatus(): ProgramState {
           // response but no program, and its answers carry no usable
           // _program — reading «latest» here would drop the approved
           // session's exercise list for ready-noexercises.
-          const resp = await questionnaireResponseForReview(athleteId, program.created_at);
-          const days = validDays(
-            (resp?.answers as Record<string, unknown> | undefined)?._program &&
-              ((resp?.answers as Record<string, unknown>)._program as Record<string, unknown>).exercises
-          );
+          //
+          // The exercise-list read must not throw the whole refresh into
+          // the outer catch: the program row above already PROVES an
+          // approved program exists, so a transient failure here must land
+          // on ready-noexercises (program shown, no exercise list) — not
+          // on the outer fallback, which on first load is 'none' and swaps
+          // the trainee's real session for the demo workout.
+          let days: ProgramExerciseDay[] | null = null;
+          try {
+            const resp = await questionnaireResponseForReview(athleteId, program.created_at);
+            days = validDays(
+              (resp?.answers as Record<string, unknown> | undefined)?._program &&
+                ((resp?.answers as Record<string, unknown>)._program as Record<string, unknown>).exercises
+            );
+          } catch (err) {
+            console.warn('[program-status] exercise list read failed, showing program without exercises', err);
+          }
           set(
             days
               ? { kind: 'ready', program, coachName, days }
@@ -136,11 +148,21 @@ export function useAthleteProgramStatus(): ProgramState {
         try {
           const active = await getAthleteActiveProgram(athleteId);
           if (active) {
-            const resp = await questionnaireResponseForReview(athleteId, active.program.created_at);
-            const days = validDays(
-              (resp?.answers as Record<string, unknown> | undefined)?._program &&
-                ((resp?.answers as Record<string, unknown>)._program as Record<string, unknown>).exercises
-            );
+            // Same split as the approved path above: the active-program
+            // read succeeding already proves a live program, so a failed
+            // exercise-list read must land on ready-noexercises — not in
+            // the catch below, which would hide it behind the
+            // awaiting-review card (or 'none' + the demo workout).
+            let days: ProgramExerciseDay[] | null = null;
+            try {
+              const resp = await questionnaireResponseForReview(athleteId, active.program.created_at);
+              days = validDays(
+                (resp?.answers as Record<string, unknown> | undefined)?._program &&
+                  ((resp?.answers as Record<string, unknown>)._program as Record<string, unknown>).exercises
+              );
+            } catch (err) {
+              console.warn('[program-status] exercise list read failed, showing program without exercises', err);
+            }
             set(
               days
                 ? { kind: 'ready', program: active.program, coachName: active.coachName, days }
