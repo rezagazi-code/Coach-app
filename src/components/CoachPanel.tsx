@@ -1327,7 +1327,19 @@ export default function CoachPanel() {
                               placeholder={t('cp.nutritionTarget')}
                               inputMode="numeric"
                               onChange={(e) => {
-                                const n = Number(faDigitsToLatin(e.target.value.trim()));
+                                // A plate target is a gram/piece count, so an
+                                // ASCII comma here can only be a thousands
+                                // separator («1,000»): without stripping it,
+                                // Number('1,000') is NaN and the target
+                                // silently zeroed (the field visibly blanked
+                                // — the same separator family as the
+                                // PadelPro '500,000' parseInt bug). FA
+                                // thousands separator ٬ is already stripped
+                                // by faDigitsToLatin; the decimal separator
+                                // stays ٫ → '.' and is untouched.
+                                const n = Number(
+                                  faDigitsToLatin(e.target.value.trim()).replace(/,/g, ''),
+                                );
                                 patchPlateItem(c.athlete.id, i, {
                                   target: Number.isFinite(n) && n >= 0 ? n : 0,
                                 });
