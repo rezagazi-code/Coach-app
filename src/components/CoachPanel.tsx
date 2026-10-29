@@ -767,6 +767,14 @@ export default function CoachPanel() {
         console.error('[coach-panel] decision failed', err);
         showToast(t('cp.actionError'));
       }
+      // Second invalidation, AFTER the decision landed: the bump at the
+      // top only kills loads already in flight at tap time. A silent
+      // foreground load that started DURING the save (coach backgrounds
+      // the app and returns on a slow network) still passes the sequence
+      // check and resolves after the filter above with its pre-decision
+      // list — resurrecting the just-decided review. Bumping again here
+      // discards exactly that load; the next re-check reads post-decision.
+      loadSeqRef.current++;
       setDeciding(false);
     },
     [detail, deciding, showToast, t]
@@ -899,6 +907,10 @@ export default function CoachPanel() {
         console.error('[coach-panel] delete trainee failed', err);
         showToast(t('cp.deleteTraineeFail'));
       } finally {
+        // Same second invalidation as decide(): a foreground load that
+        // started during the delete must not land its pre-delete lists
+        // after the filters above and resurrect the deleted athlete.
+        loadSeqRef.current++;
         setDeletingId(null);
       }
     },

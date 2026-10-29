@@ -326,6 +326,15 @@ export default function SupplementReviewSection({
           noteDirtyRef.current = false;
         }
       }
+      // Second invalidation, AFTER the decision landed: the bump at the
+      // top only kills loads already in flight at tap time. A silent
+      // foreground load that started DURING this save (coach backgrounds
+      // the app and returns on a slow network) still passes the sequence
+      // check and resolves after setReview above with its pre-decision
+      // row — visibly un-deciding the approval until the next expand.
+      // Bumping again here discards exactly that load; the next
+      // foreground re-check reads the post-decision row.
+      loadSeqRef.current++;
     } finally {
       setSaving(false);
     }
@@ -384,6 +393,10 @@ export default function SupplementReviewSection({
           noteDirtyRef.current = false;
         }
       }
+      // Same second invalidation as decide(): a foreground load that
+      // started during the reopen save must not land its pre-reopen
+      // ('approved') row after the pending state above.
+      loadSeqRef.current++;
     } finally {
       setSaving(false);
     }
