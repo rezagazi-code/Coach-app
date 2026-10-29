@@ -36,6 +36,8 @@ import {
   listAthletes,
   listPendingReviews,
   questionnaireResponseForReview,
+  readLocalSuppReviews,
+  writeLocalSuppReviews,
   updateProgramCoachNotes,
   upsertNutritionTargets,
   type Athlete,
@@ -890,6 +892,15 @@ export default function CoachPanel() {
         writeLocalNoteCarried(localNoteCarried.current);
         delete localPlates.current[athleteId];
         writeLocalPlates(localPlates.current);
+        // Same for the supplement-review mirror (km.suppreview.v1): every
+        // decision writes a local copy, so without this the deleted
+        // athlete's draft snapshot + coach note would linger forever
+        // after a «complete» delete.
+        const suppReviews = readLocalSuppReviews();
+        if (athleteId in suppReviews) {
+          delete suppReviews[athleteId];
+          writeLocalSuppReviews(suppReviews);
+        }
         plateDirty.current.delete(athleteId);
         noteDirty.current.delete(athleteId);
         setDrafts((prev) => {
