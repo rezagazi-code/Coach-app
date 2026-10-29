@@ -34,7 +34,7 @@
     "preview": "vite preview"
   },
   "type": "module",
-  "version": "0.2.38",
+  "version": "0.2.39",
   "engines": {
     "node": "22.x"
   }
