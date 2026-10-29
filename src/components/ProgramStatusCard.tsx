@@ -53,6 +53,15 @@ function hasOwnPendingSubmission(athleteId: string | null): boolean {
 export function useAthleteProgramStatus(): ProgramState {
   const [state, setState] = useState<ProgramState>({ kind: 'loading' });
   const seqRef = useRef(0);
+  // Last resolved non-loading state. A failed refresh must not blank it:
+  // the same trap class as the supplement-review (afea0ca) and nutrition
+  // (5eb96c4) fixes — a transient read failure on a foreground refresh
+  // used to flip a trainee with an approved program to 'none', swapping
+  // their real session for the demo workout until the next refresh.
+  // Only a trainable state is worth keeping: 'none'/'pending'/'in_review'
+  // hide no session, and fresh server data (e.g. a new in_review row)
+  // must still replace them.
+  const lastGoodRef = useRef<ProgramState | null>(null);
   useEffect(() => {
     let alive = true;
     // Re-runnable: the tab host keeps WorkoutTab mounted while the athlete
@@ -73,8 +82,15 @@ export function useAthleteProgramStatus(): ProgramState {
     const refresh = () => {
       const seq = ++seqRef.current;
       const set = (s: ProgramState) => {
-        if (alive && seq === seqRef.current) setState(s);
+        if (alive && seq === seqRef.current) {
+          setState(s);
+          if (s.kind !== 'loading') lastGoodRef.current = s;
+        }
       };
+      // True when the trainee currently trains from a program that a
+      // failed refresh must not hide (see lastGoodRef above).
+      const keepTrainableOnFailure = () =>
+        lastGoodRef.current?.kind === 'ready' || lastGoodRef.current?.kind === 'ready-noexercises';
       (async () => {
       const athleteId = getCurrentAthleteId();
       const fallback = (): ProgramState =>
@@ -133,7 +149,13 @@ export function useAthleteProgramStatus(): ProgramState {
             return;
           }
         } catch {
-          /* fall through to the local signal below */
+          // The active-program read failed transiently: the newest row
+          // is draft/archived/in_review, but a trainable program may
+          // still be live — falling through would hide it behind the
+          // awaiting-review card (or 'none'). Keep it; the next
+          // foreground/event refresh retries the read.
+          if (keepTrainableOnFailure()) return;
+          /* else fall through to the local signal below */
         }
         if (program.status === 'in_review') {
           set({ kind: 'in_review', program, coachName });
@@ -142,12 +164,16 @@ export function useAthleteProgramStatus(): ProgramState {
         set(fallback());
       } catch (e) {
         // Unconfigured backend (demo mode) or a transient read failure:
-        // never strand the UI — the local submission signal decides.
+        // never strand the UI — the local submission signal decides,
+        // EXCEPT when a trainable program is already on screen: a failed
+        // refresh must not blank it to 'none' (demo workout) until the
+        // next refresh proves it gone. First-load failures (no resolved
+        // state yet) still fall back to the local signal as before.
         if (alive) {
           if (!(e instanceof SupabaseNotConfiguredError)) {
             console.warn('[program-status] read failed, using local signal', e);
           }
-          set(fallback());
+          if (!keepTrainableOnFailure()) set(fallback());
         }
       }
     })();
