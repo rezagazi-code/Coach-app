@@ -215,12 +215,16 @@ function writeLocalNoteCarried(carried: Record<string, string>) {
 // Questionnaire answers are typed by Iranian users: Persian/Arabic-Indic
 // digits and the ٫ decimal separator must normalize before Number(), or
 // Number('۲۳٫۴') is NaN and the flag silently vanishes (PadelPro lesson:
-// raw parseInt/Number on FA-digit input fails SILENTLY).
+// raw parseInt/Number on FA-digit input fails SILENTLY). The Arabic comma
+// ، (U+060C — the comma key on a Persian keyboard) is a decimal separator
+// here too: '۲۳،۴' must become 23.4, not NaN (plate targets strip it as a
+// thousands separator instead — see the plate input below).
 const faDigitsToLatin = (s: string): string =>
   s
     .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
     .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
     .replace(/٫/g, '.')
+    .replace(/،/g, '.')
     .replace(/٬/g, '');
 
 // flags jsonb is untyped — narrow defensively before rendering.
@@ -1333,12 +1337,17 @@ export default function CoachPanel() {
                                 // Number('1,000') is NaN and the target
                                 // silently zeroed (the field visibly blanked
                                 // — the same separator family as the
-                                // PadelPro '500,000' parseInt bug). FA
-                                // thousands separator ٬ is already stripped
-                                // by faDigitsToLatin; the decimal separator
-                                // stays ٫ → '.' and is untouched.
+                                // PadelPro '500,000' parseInt bug). The
+                                // Arabic comma ، follows the same rule
+                                // («1،000» → 1000): it is stripped from the
+                                // raw input BEFORE faDigitsToLatin, which
+                                // would otherwise turn it into a decimal
+                                // point. FA thousands separator ٬ is
+                                // already stripped by faDigitsToLatin; the
+                                // decimal separator stays ٫ → '.' and is
+                                // untouched.
                                 const n = Number(
-                                  faDigitsToLatin(e.target.value.trim()).replace(/,/g, ''),
+                                  faDigitsToLatin(e.target.value.trim().replace(/،/g, '')).replace(/,/g, ''),
                                 );
                                 patchPlateItem(c.athlete.id, i, {
                                   target: Number.isFinite(n) && n >= 0 ? n : 0,

@@ -1156,8 +1156,10 @@ function parseNum(v){
   // dropped. Without the ٫ step, parseFloat('75٫5') silently truncates to
   // 75 (a typed 75.5kg becomes 75kg in the BMI/flags) — the same silent
   // separator family as the PadelPro '500,000' and plate-target '1,000'
-  // bugs. The ASCII ',' → '.' step is the FA decimal comma.
-  const s = String(v).replace(/[۰-۹]/g, d => FA_DIGITS.indexOf(d)).replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/٫/g, ".").replace(/٬/g, "").replace(",", ".");
+  // bugs. The ASCII ',' → '.' step is the FA decimal comma. The Arabic
+  // comma ، (U+060C — the comma key on a Persian keyboard) → '.' too:
+  // without it '۷۵،۵' parsed as 75, losing the .5 exactly like ٫ did.
+  const s = String(v).replace(/[۰-۹]/g, d => FA_DIGITS.indexOf(d)).replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/٫/g, ".").replace(/،/g, ".").replace(/٬/g, "").replace(",", ".");
   return parseFloat(s);
 }
 function radioVal(name){ const el = document.querySelector('input[name="'+name+'"]:checked'); return el ? el.value : null; }
