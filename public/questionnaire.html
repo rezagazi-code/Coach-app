@@ -306,15 +306,22 @@
               </div>
               <div class="field">
                 <label for="fAge">سن (سال) *</label>
-                <input type="number" id="fAge" min="8" max="95" placeholder="مثلاً: ۲۹" />
+                <!-- type="text" + inputmode="decimal" ON PURPOSE (not type="number"):
+                     a number input's value sanitization drops non-ASCII digits, so a
+                     Persian-keyboard user typing ۲۹ saw an empty field and the step-1
+                     validation named "سن" as missing — the 2026-10-19 step-1 blocker,
+                     still present here. As text, FA digits reach parseNum, which
+                     already normalizes them; ranges are enforced by validateKey, not
+                     by the browser, so min/max here are documentary only. -->
+                <input type="text" inputmode="decimal" id="fAge" min="8" max="95" placeholder="مثلاً: ۲۹" />
               </div>
               <div class="field">
                 <label for="fHeight">قد (سانتی‌متر) *</label>
-                <input type="number" id="fHeight" min="110" max="230" placeholder="مثلاً: ۱۸۲" />
+                <input type="text" inputmode="decimal" id="fHeight" min="110" max="230" placeholder="مثلاً: ۱۸۲" />
               </div>
               <div class="field">
                 <label for="fWeight">وزن (کیلوگرم) *</label>
-                <input type="number" id="fWeight" min="30" max="250" placeholder="مثلاً: ۷۹" />
+                <input type="text" inputmode="decimal" id="fWeight" min="30" max="250" placeholder="مثلاً: ۷۹" />
               </div>
             </div>
             <div class="field" style="margin-top:14px">
@@ -343,19 +350,19 @@
             <div class="grid">
               <div class="field">
                 <label for="fWaist">دور کمر (سانتی‌متر) <span class="hint">(اختیاری)</span></label>
-                <input type="number" id="fWaist" min="40" max="150" placeholder="مثلاً: ۸۵" />
+                <input type="text" inputmode="decimal" id="fWaist" min="40" max="150" placeholder="مثلاً: ۸۵" />
               </div>
               <div class="field">
                 <label for="fChest">دور سینه (سانتی‌متر) <span class="hint">(اختیاری)</span></label>
-                <input type="number" id="fChest" min="60" max="160" placeholder="مثلاً: ۱۰۲" />
+                <input type="text" inputmode="decimal" id="fChest" min="60" max="160" placeholder="مثلاً: ۱۰۲" />
               </div>
               <div class="field">
                 <label for="fArm">دور بازو (سانتی‌متر) <span class="hint">(اختیاری)</span></label>
-                <input type="number" id="fArm" min="20" max="70" placeholder="مثلاً: ۳۴" />
+                <input type="text" inputmode="decimal" id="fArm" min="20" max="70" placeholder="مثلاً: ۳۴" />
               </div>
               <div class="field">
                 <label for="fThigh">دور ران (سانتی‌متر) <span class="hint">(اختیاری)</span></label>
-                <input type="number" id="fThigh" min="30" max="100" placeholder="مثلاً: ۵۸" />
+                <input type="text" inputmode="decimal" id="fThigh" min="30" max="100" placeholder="مثلاً: ۵۸" />
               </div>
             </div>
             <div class="field" style="margin-top:16px">
@@ -462,15 +469,15 @@
               <div class="grid">
                 <div class="field">
                   <label for="fPRBench">پرس سینه</label>
-                  <input type="number" id="fPRBench" min="20" max="400" placeholder="مثلاً: ۱۰۰" />
+                  <input type="text" inputmode="decimal" id="fPRBench" min="20" max="400" placeholder="مثلاً: ۱۰۰" />
                 </div>
                 <div class="field">
                   <label for="fPRSquat">اسکوات</label>
-                  <input type="number" id="fPRSquat" min="20" max="400" placeholder="مثلاً: ۱۲۰" />
+                  <input type="text" inputmode="decimal" id="fPRSquat" min="20" max="400" placeholder="مثلاً: ۱۲۰" />
                 </div>
                 <div class="field">
                   <label for="fPRDead">ددلیفت</label>
-                  <input type="number" id="fPRDead" min="20" max="400" placeholder="مثلاً: ۱۴۰" />
+                  <input type="text" inputmode="decimal" id="fPRDead" min="20" max="400" placeholder="مثلاً: ۱۴۰" />
                 </div>
               </div>
             </div>
@@ -659,7 +666,7 @@
             <div class="grid">
               <div class="field">
                 <label for="fSleep">میانگین خواب شبانه (ساعت) *</label>
-                <input type="number" id="fSleep" min="3" max="14" step="0.5" placeholder="مثلاً: ۷.۵" />
+                <input type="text" inputmode="decimal" id="fSleep" min="3" max="14" step="0.5" placeholder="مثلاً: ۷.۵" />
               </div>
               <div class="field">
                 <label>ساعت هوشمند داری؟ *</label>
