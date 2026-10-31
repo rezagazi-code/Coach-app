@@ -1472,7 +1472,18 @@ export function enqueueSubmission(
   }
   if (payload.redFlagBlocked) return; // screening blocked: response only
   const programUuid = programClientUuid(payload.clientUuid);
+  // Mint the program row's id HERE, not at flush time: the review entry
+  // below must reference it, and the athlete can never look it up later —
+  // their programs SELECT policy exposes approved/active rows only, so an
+  // in_review draft is invisible to the very session that created it (see
+  // the review_queue case in pushEntry). programs.id is a plain uuid PK
+  // with a default, and the v7 self-submit INSERT policy constrains
+  // created_by/approved_at/coach/track/status but not id, so a
+  // client-minted id inserts cleanly. The review entry carries the same
+  // id, so its flush needs no program lookup at all.
+  const programId = newClientUuid();
   const programData = {
+    id: programId,
     athlete_id: athleteId,
     coach_id: coachId,
     client_uuid: programUuid,
@@ -1491,6 +1502,7 @@ export function enqueueSubmission(
   }
   if (payload.track !== 'aionly') {
     const reviewData = {
+      program_id: programId,
       program_client_uuid: programUuid,
       flags_snapshot: payload.flags,
     };
@@ -1580,19 +1592,37 @@ async function pushEntry(client: SupabaseClient, entry: QueueEntry): Promise<voi
       return;
     }
     case 'review_queue': {
-      // d.program_client_uuid is an internal queue key, NOT a column: the
-      // program_id FK is resolved from the synced program row at push time.
-      const programUuid = typeof d.program_client_uuid === 'string' ? d.program_client_uuid : null;
-      if (!programUuid) throw new Error('review_queue entry missing program_client_uuid');
-      const { data, error } = await client
-        .from('programs')
-        .select('id')
-        .eq('client_uuid', programUuid)
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) throw new Error('program not synced yet');
+      // d.program_client_uuid is an internal queue key, NOT a column; the
+      // program_id FK comes from d.program_id, minted at enqueue time
+      // (see enqueueSubmission). The old fallback below — resolving the
+      // id by SELECTing the program by client_uuid — could NEVER work
+      // for a coach-track draft: the athlete's programs SELECT policy
+      // exposes approved/active rows only, so the just-synced in_review
+      // row filtered out, the lookup returned nothing, and every review
+      // entry failed with 'program not synced yet' until the 25-retry
+      // cap dropped it, after which the pending-payload repair re-enqueued
+      // it forever. The coach never saw the submission: the approval
+      // flow's queue leg was broken since the submit engine landed.
+      // (A returned id from the program upsert would NOT substitute:
+      // PostgREST applies the same SELECT policy to RETURNING rows, so
+      // an in_review insert returns no row either.) The SELECT fallback
+      // stays only for pre-fix entries that carry no program_id.
+      const directId = typeof d.program_id === 'string' ? d.program_id : null;
+      let programId = directId;
+      if (!programId) {
+        const programUuid = typeof d.program_client_uuid === 'string' ? d.program_client_uuid : null;
+        if (!programUuid) throw new Error('review_queue entry missing program_client_uuid');
+        const { data, error } = await client
+          .from('programs')
+          .select('id')
+          .eq('client_uuid', programUuid)
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new Error('program not synced yet');
+        programId = (data as { id: string }).id;
+      }
       const { error: insertError } = await client.from('review_queue').upsert(
-        { program_id: (data as { id: string }).id, flags_snapshot: d.flags_snapshot ?? {} },
+        { program_id: programId, flags_snapshot: d.flags_snapshot ?? {} },
         { onConflict: 'program_id', ignoreDuplicates: true }
       );
       if (insertError) throw insertError;
