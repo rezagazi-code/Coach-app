@@ -1550,14 +1550,32 @@ async function pushEntry(client: SupabaseClient, entry: QueueEntry): Promise<voi
       return;
     }
     case 'questionnaire_responses': {
+      // ignoreDuplicates (ON CONFLICT DO NOTHING): athletes hold INSERT-only
+      // RLS on this table, so a plain upsert's conflict→UPDATE path 403s.
+      // A replayed entry — server committed the row but the response was
+      // lost, or the app died mid-flush before the entry was removed —
+      // then burned all 25 retries, dropped, and was re-enqueued forever
+      // by the pending-payload repair (the synced-key guard never saw a
+      // success). DO NOTHING needs only INSERT permission and leaves the
+      // existing row untouched; a fresh submission always mints a new
+      // client_uuid, so nothing legitimate ever needs the UPDATE path.
       const { error } = await client
         .from('questionnaire_responses')
-        .upsert(d, { onConflict: 'client_uuid' });
+        .upsert(d, { onConflict: 'client_uuid', ignoreDuplicates: true });
       if (error) throw error;
       return;
     }
     case 'programs': {
-      const { error } = await client.from('programs').upsert(d, { onConflict: 'client_uuid' });
+      // Same INSERT-only RLS + replay hazard as questionnaire_responses,
+      // with a worse failure mode: a plain upsert that DID reach the
+      // UPDATE path (e.g. a future policy change) would overwrite a coach
+      // decision and coach_notes with the baked 'in_review'/'' draft.
+      // DO NOTHING keeps the server row — including any coach decision —
+      // exactly as it is, and the athlete's SELECT policy can't even see
+      // in_review rows, so no client-side pre-check could substitute.
+      const { error } = await client
+        .from('programs')
+        .upsert(d, { onConflict: 'client_uuid', ignoreDuplicates: true });
       if (error) throw error;
       return;
     }
