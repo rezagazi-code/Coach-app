@@ -185,7 +185,12 @@ export function normalizePhone(raw: string): string {
   const latin = raw
     .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
     .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
-  const p = latin.replace(/[\s-]/g, '');
+  // Strip every separator, not just spaces/hyphens: a number pasted from
+  // contacts («(0912) 345-6789», «0912.345.6789», «+98 (912) …») kept its
+  // parentheses/dots, matched no prefix rule, and signup rejected a
+  // perfectly valid number with 'badPhone'. Letters strip too, but the
+  // length+prefix rules below still gate: a half-typed number can't pass.
+  const p = latin.replace(/[^\d+]/g, '');
   if (p.startsWith('+')) return p;
   if (p.startsWith('0098')) return `+${p.slice(2)}`;
   if (p.startsWith('09') && p.length === 11) return `+98${p.slice(1)}`;
