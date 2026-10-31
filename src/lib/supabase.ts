@@ -1443,9 +1443,10 @@ export function enqueueMessage(input: {
 /**
  * Queue a full questionnaire submission (response → program → review row)
  * for the offline sync engine. All three entries carry the submission's
- * idempotency keys; the review entry references its program by
- * program_client_uuid and is flushed only after the program has synced
- * (same FK-ordering discipline as logged_sets after their session).
+ * idempotency keys; the review entry references its program by the
+ * deterministically minted program_id (see enqueueSubmission) and is
+ * flushed only after the program has synced (same FK-ordering discipline
+ * as logged_sets after their session).
  */
 export function enqueueSubmission(
   payload: QuestionnaireSubmission,
@@ -1472,16 +1473,17 @@ export function enqueueSubmission(
   }
   if (payload.redFlagBlocked) return; // screening blocked: response only
   const programUuid = programClientUuid(payload.clientUuid);
-  // Mint the program row's id HERE, not at flush time: the review entry
-  // below must reference it, and the athlete can never look it up later —
-  // their programs SELECT policy exposes approved/active rows only, so an
-  // in_review draft is invisible to the very session that created it (see
-  // the review_queue case in pushEntry). programs.id is a plain uuid PK
-  // with a default, and the v7 self-submit INSERT policy constrains
-  // created_by/approved_at/coach/track/status but not id, so a
-  // client-minted id inserts cleanly. The review entry carries the same
-  // id, so its flush needs no program lookup at all.
-  const programId = newClientUuid();
+  // Mint the program row's id DETERMINISTICALLY from the submission key,
+  // not randomly: a dropped review entry leaves the payload stored, and
+  // the next persist run re-enqueues while skipping the already-synced
+  // program entry — a random re-mint would reference a program id that
+  // never lands server-side, so the review insert would FK-violate on
+  // every retry until the 25-attempt drop, then re-enqueue and loop
+  // forever, and the coach would never see the submission. A derived id
+  // re-mints identically, so the repair's review row points at the row
+  // that already exists. (Same reason the client_uuid is derived, and
+  // the same deterministicUuid helper already used for session/set ids.)
+  const programId = deterministicUuid(`${programUuid}:id`);
   const programData = {
     id: programId,
     athlete_id: athleteId,
