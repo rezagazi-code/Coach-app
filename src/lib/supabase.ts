@@ -965,29 +965,34 @@ export async function submitQuestionnaire(input: {
     return { response, program: null, blocked: true };
   }
   const client = requireClient();
-  const { data, error } = await client
+  // No RETURNING select here: the athlete's programs SELECT policy exposes
+  // approved/active rows only, so an in_review upsert returns no row and
+  // .single() would throw AFTER the row actually landed — leaving the
+  // submission with no review_queue row and the coach never seeing it
+  // (the same RLS-RETURNING trap the queue engine's enqueueSubmission
+  // already fixed). Mint the id deterministically, as the queue does, and
+  // build the returned program from the written row instead.
+  const programId = deterministicUuid(`${programClientUuid(payload.clientUuid)}:id`);
+  const programRow = {
+    id: programId,
+    athlete_id: input.athlete_id,
+    coach_id: input.coach_id,
+    client_uuid: programClientUuid(payload.clientUuid),
+    status: payload.track === 'aionly' ? 'active' : 'in_review',
+    created_by: 'ai',
+    track: payload.track,
+    goal: payload.program.goal,
+    split: payload.program.split,
+    days_per_week: payload.program.days_per_week,
+    ai_summary: payload.program.ai_summary,
+    coach_notes: '',
+    approved_at: null,
+  };
+  const { error } = await client
     .from('programs')
-    .upsert(
-      {
-        athlete_id: input.athlete_id,
-        coach_id: input.coach_id,
-        client_uuid: programClientUuid(payload.clientUuid),
-        status: payload.track === 'aionly' ? 'active' : 'in_review',
-        created_by: 'ai',
-        track: payload.track,
-        goal: payload.program.goal,
-        split: payload.program.split,
-        days_per_week: payload.program.days_per_week,
-        ai_summary: payload.program.ai_summary,
-        coach_notes: '',
-        approved_at: null,
-      },
-      { onConflict: 'client_uuid' }
-    )
-    .select()
-    .single();
+    .upsert(programRow, { onConflict: 'client_uuid', ignoreDuplicates: true });
   if (error) throw error;
-  const program = data as Program;
+  const program = programRow as unknown as Program;
   if (payload.track !== 'aionly') {
     const { error: queueError } = await client
       .from('review_queue')
